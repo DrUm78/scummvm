@@ -257,9 +257,9 @@ void registerDefaults() {
 	ConfMan.registerDefault("vsync", true);
 
 	// Sound & Music
-	ConfMan.registerDefault("music_volume", 192);
-	ConfMan.registerDefault("sfx_volume", 192);
-	ConfMan.registerDefault("speech_volume", 192);
+	ConfMan.registerDefault("music_volume", 256);
+	ConfMan.registerDefault("sfx_volume", 256);
+	ConfMan.registerDefault("speech_volume", 256);
 
 	ConfMan.registerDefault("music_mute", false);
 	ConfMan.registerDefault("sfx_mute", false);

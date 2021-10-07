@@ -8,6 +8,7 @@
 scummvm.dwp
 lib*.a
 .deps
+*.opk
 
 /config.log
 /scummvm
@@ -87,6 +88,8 @@ lib*.a
 /backends/platform/symbian/*/ScummVM_*.mmp
 !/backends/platform/symbian/*/ScummVM_*_App.mmp
 /backends/platform/symbian/*/BLD.INF
+
+/opk
 
 /dists/rpl.exe
 
