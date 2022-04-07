@@ -257,9 +257,9 @@ void registerDefaults() {
 	ConfMan.registerDefault("vsync", true);
 
 	// Sound & Music
-	ConfMan.registerDefault("music_volume", 256);
-	ConfMan.registerDefault("sfx_volume", 256);
-	ConfMan.registerDefault("speech_volume", 256);
+	ConfMan.registerDefault("music_volume", 192);
+	ConfMan.registerDefault("sfx_volume", 192);
+	ConfMan.registerDefault("speech_volume", 192);
 
 	ConfMan.registerDefault("music_mute", false);
 	ConfMan.registerDefault("sfx_mute", false);
@@ -285,7 +285,7 @@ void registerDefaults() {
 	ConfMan.registerDefault("path", "");
 	ConfMan.registerDefault("platform", Common::kPlatformDOS);
 	ConfMan.registerDefault("language", "en");
-	ConfMan.registerDefault("subtitles", false);
+	ConfMan.registerDefault("subtitles", true);
 	ConfMan.registerDefault("boot_param", 0);
 	ConfMan.registerDefault("dump_scripts", false);
 	ConfMan.registerDefault("save_slot", -1);

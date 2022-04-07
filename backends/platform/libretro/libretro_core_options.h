@@ -64,7 +64,7 @@ struct retro_core_option_definition option_defs_us[] = {
          { "3.0",  NULL },
          { NULL, NULL },
       },
-      "1.5"
+      "1.0"
    },
    {
       "scummvm_analog_response",
@@ -122,6 +122,26 @@ struct retro_core_option_definition option_defs_us[] = {
          { NULL, NULL },
       },
       "1.0"
+   },
+   {
+      "scummvm_gamepad_cursor_acceleration_time",
+      "Gamepad Cursor Acceleration",
+      "The amount of time (In seconds) it takes for the cursor to reach full speed",
+      {
+         { "off", NULL },
+         { "0.1", NULL },
+         { "0.2", NULL },
+         { "0.3", NULL },
+         { "0.4", NULL },
+         { "0.5", NULL },
+         { "0.6", NULL },
+         { "0.7", NULL },
+         { "0.8", NULL },
+         { "0.9", NULL },
+         { "1.0", NULL },
+         { NULL, NULL },
+      },
+      "0.2"
    },
    {
       "scummvm_speed_hack",

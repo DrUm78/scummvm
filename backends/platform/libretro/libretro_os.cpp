@@ -303,6 +303,10 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
       int _mouseY;
       float _mouseXAcc;
       float _mouseYAcc;
+      float _dpadXAcc;
+      float _dpadYAcc;
+      float _dpadXVel;
+      float _dpadYVel;
       int _mouseHotspotX;
       int _mouseHotspotY;
       int _mouseKeyColor;
@@ -326,6 +330,7 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
       OSystem_RETRO(bool aEnableSpeedHack) :
          _mousePaletteEnabled(false), _mouseVisible(false),
          _mouseX(0), _mouseY(0), _mouseXAcc(0.0), _mouseYAcc(0.0), _mouseHotspotX(0), _mouseHotspotY(0),
+		 _dpadXAcc(0.0), _dpadYAcc(0.0), _dpadXVel(0.0f), _dpadYVel(0.0f),
          _mouseKeyColor(0), _mouseDontScale(false),
          _joypadnumpadLast(8), _joypadnumpadActive(false),
          _mixer(0), _startTime(0), _threadExitTime(10),
@@ -808,13 +813,15 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
 #define BASE_CURSOR_SPEED 4
 #define PI 3.141592653589793238
 
-      void processMouse(retro_input_state_t aCallback, int device, float gampad_cursor_speed, bool analog_response_is_quadratic, int analog_deadzone, float mouse_speed)
+      void processMouse(retro_input_state_t aCallback, int device, float gampad_cursor_speed, float gamepad_acceleration_time, bool analog_response_is_quadratic, int analog_deadzone, float mouse_speed)
       {
          int16_t joy_x, joy_y, joy_rx, joy_ry, x, y;
          float analog_amplitude_x, analog_amplitude_y;
          int mouse_acc_int;
          bool do_joystick, do_mouse, down;
-         float adjusted_cursor_speed = (float)BASE_CURSOR_SPEED * gampad_cursor_speed;
+         float screen_adjusted_cursor_speed = (float)_screen.w / 320.0f; // Dpad cursor speed should always be based off a 320 wide screen, to keep speeds consistent
+         float adjusted_cursor_speed = (float)BASE_CURSOR_SPEED * gampad_cursor_speed * screen_adjusted_cursor_speed;
+		 float inverse_acceleration_time = (gamepad_acceleration_time > 0.0) ? (1.0 / 60.0) * (1.0 / gamepad_acceleration_time) : 1.0;
          int dpad_cursor_offset;
          double rs_radius, rs_angle;
          unsigned numpad_index;
@@ -943,42 +950,69 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
 				}
 			}
 
-         if (device == RETRO_DEVICE_JOYPAD) {
-            if (aCallback(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
+         if (device == RETRO_DEVICE_JOYPAD)
+         {
+            bool dpadLeft  = aCallback(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT);
+            bool dpadRight = aCallback(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT);
+            bool dpadUp    = aCallback(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP);
+            bool dpadDown  = aCallback(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN);
+
+            if (dpadLeft || dpadRight)
             {
-					dpad_cursor_offset = (int)(adjusted_cursor_speed * 0.5f);
-					dpad_cursor_offset = (dpad_cursor_offset < 1) ? 1 : dpad_cursor_offset;
-               _mouseX -= dpad_cursor_offset;
+               _dpadXVel = MIN(_dpadXVel + inverse_acceleration_time, 1.0f);
+            }
+            else
+            {
+               _dpadXVel = 0.0f;
+            }
+
+            if (dpadUp || dpadDown)
+            {
+               _dpadYVel = MIN(_dpadYVel + inverse_acceleration_time, 1.0f);
+            }
+            else
+            {
+               _dpadYVel = 0.0f;
+            }
+
+            if (dpadLeft)
+            {
+               _dpadXAcc = MIN(_dpadXAcc - _dpadXVel * adjusted_cursor_speed, 0.0f);
+               _mouseX += (int)_dpadXAcc;
+               _dpadXAcc -= (float)(int)_dpadXAcc;
+
+               _mouseX = (_mouseX < 0) ? 0 : _mouseX;
+               _mouseX = (_mouseX >= _screen.w) ? _screen.w : _mouseX;
+               do_joystick = true;
+            }
+            if (dpadRight)
+            {
+               _dpadXAcc = MAX(_dpadXAcc + _dpadXVel * adjusted_cursor_speed, 0.0f);
+               _mouseX += (int)_dpadXAcc;
+               _dpadXAcc -= (float)(int)_dpadXAcc;
+
                _mouseX = (_mouseX < 0) ? 0 : _mouseX;
                _mouseX = (_mouseX >= _screen.w) ? _screen.w : _mouseX;
                do_joystick = true;
             }
 
-            if (aCallback(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
+            if (dpadUp)
             {
-					dpad_cursor_offset = (int)(adjusted_cursor_speed * 0.5f);
-					dpad_cursor_offset = (dpad_cursor_offset < 1) ? 1 : dpad_cursor_offset;
-               _mouseX += dpad_cursor_offset;
-               _mouseX = (_mouseX < 0) ? 0 : _mouseX;
-               _mouseX = (_mouseX >= _screen.w) ? _screen.w : _mouseX;
-               do_joystick = true;
-            }
+               _dpadYAcc = MIN(_dpadYAcc - _dpadYVel * adjusted_cursor_speed, 0.0f);
+               _mouseY += (int)_dpadYAcc;
+               _dpadYAcc -= (float)(int)_dpadYAcc;
 
-            if (aCallback(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
-            {
-					dpad_cursor_offset = (int)(adjusted_cursor_speed * 0.5f);
-					dpad_cursor_offset = (dpad_cursor_offset < 1) ? 1 : dpad_cursor_offset;
-               _mouseY -= dpad_cursor_offset;
                _mouseY = (_mouseY < 0) ? 0 : _mouseY;
                _mouseY = (_mouseY >= _screen.h) ? _screen.h : _mouseY;
                do_joystick = true;
             }
 
-            if (aCallback(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
+            if (dpadDown)
             {
-					dpad_cursor_offset = (int)(adjusted_cursor_speed * 0.5f);
-					dpad_cursor_offset = (dpad_cursor_offset < 1) ? 1 : dpad_cursor_offset;
-               _mouseY += dpad_cursor_offset;
+               _dpadYAcc = MAX(_dpadYAcc + _dpadYVel * adjusted_cursor_speed, 0.0f);
+               _mouseY += (int)_dpadYAcc;
+               _dpadYAcc -= (float)(int)_dpadYAcc;
+
                _mouseY = (_mouseY < 0) ? 0 : _mouseY;
                _mouseY = (_mouseY >= _screen.h) ? _screen.h : _mouseY;
                do_joystick = true;
@@ -1276,9 +1310,9 @@ const Graphics::Surface& getScreen()
    return dynamic_cast<OSystem_RETRO *>(g_system)->getScreen();
 }
 
-void retroProcessMouse(retro_input_state_t aCallback, int device, float gampad_cursor_speed, bool analog_response_is_quadratic, int analog_deadzone, float mouse_speed)
+void retroProcessMouse(retro_input_state_t aCallback, int device, float gamepad_cursor_speed, float gamepad_acceleration_time, bool analog_response_is_quadratic, int analog_deadzone, float mouse_speed)
 {
-   dynamic_cast<OSystem_RETRO *>(g_system)->processMouse(aCallback, device, gampad_cursor_speed, analog_response_is_quadratic, analog_deadzone, mouse_speed);
+   dynamic_cast<OSystem_RETRO *>(g_system)->processMouse(aCallback, device, gamepad_cursor_speed, gamepad_acceleration_time, analog_response_is_quadratic, analog_deadzone, mouse_speed);
 }
 
 void retroPostQuit()

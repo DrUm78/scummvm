@@ -53,6 +53,7 @@ static float gampad_cursor_speed = 1.0f;
 static bool analog_response_is_quadratic = false;
 
 static float mouse_speed = 1.0f;
+static float gamepad_acceleration_time = 0.2f;
 
 static bool speed_hack_is_enabled = false;
 
@@ -228,6 +229,15 @@ static void update_variables(void)
 	{
 		gampad_cursor_speed = (float)atof(var.value);
 	}
+
+   var.key = "scummvm_gamepad_cursor_acceleration_time";
+   var.value = NULL;
+   gamepad_acceleration_time = 0.2f;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      printf("Updating gamepad_acceleration_time\n");
+      gamepad_acceleration_time = (float)atof(var.value);
+   }
 
 	var.key = "scummvm_analog_response";
 	var.value = NULL;
@@ -450,7 +460,7 @@ void retro_run (void)
    if(g_system)
    {
       poll_cb();
-      retroProcessMouse(input_cb, retro_device, gampad_cursor_speed, analog_response_is_quadratic, analog_deadzone, mouse_speed);
+      retroProcessMouse(input_cb, retro_device, gampad_cursor_speed, gamepad_acceleration_time, analog_response_is_quadratic, analog_deadzone, mouse_speed);
    }
 
    /* Run emu */
