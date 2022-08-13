@@ -1,0 +1,55 @@
+#!/bin/sh
+
+mkdir -p opk/cores
+
+cd /opt/sdlretro
+git pull
+mkdir -p build/
+cd build/
+cmake -DCMAKE_BUILD_TYPE=Release -DMODEL=funkey ..
+make clean
+make -j16
+/opt/FunKey-sdk/bin/arm-funkey-linux-musleabihf-strip src/sdlretro
+cp -f src/sdlretro ../../libretro-scummvm/opk
+
+cd /opt/libretro-scummvm
+#git pull
+git fetch --all
+git merge upstream/master
+cd backends/platform/libretro/build
+make clean
+make -j16
+/opt/FunKey-sdk/bin/arm-funkey-linux-musleabihf-strip scummvm_libretro.so
+cp -f scummvm_libretro.so ../../../../opk/cores/
+cd -
+
+cp -f icons/scummvm.png opk/
+cp -f AUTHORS CONTRIBUTING.md COPYING COPYRIGHT NEWS.md README.md opk/
+
+cd backends/platform/libretro/aux-data
+./bundle_aux_data.bash
+cd -
+unzip backends/platform/libretro/aux-data/scummvm_tmp.zip -d opk/
+
+# https://unix.stackexchange.com/questions/219268/how-to-add-new-lines-when-using-echo
+print()
+	case    ${IFS- } in
+	(\ *)   printf  %b\\n "$*";;
+	(*)     IFS=\ $IFS
+	printf  %b\\n "$*"
+	IFS=${IFS#?}
+esac
+
+# Create GMenu2X entry file plus other things
+print '[Desktop Entry]
+Name=ScummVM
+Comment=ScummVM v2.7.0git for Libretro
+Exec=sdlretro %f
+Icon=scummvm
+Categories=dev
+SelectorFilter=scummvm' > opk/scummvm.funkey-s.desktop
+
+rm -f *.opk
+mksquashfs opk/ scummvm_v2.7.0git_funkey-s.opk -all-root -noappend -no-exports -no-xattrs
+rm -rf opk/
+rm -f backends/platform/libretro/aux-data/scummvm_tmp.zip
