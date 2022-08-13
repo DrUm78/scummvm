@@ -422,6 +422,9 @@ extern "C" int scummvm_main(int argc, const char * const argv[]) {
 
 	// Update the config file
 	ConfMan.set("versioninfo", gScummVMVersion, Common::ConfigManager::kApplicationDomain);
+	ConfMan.set("themepath", "./theme", Common::ConfigManager::kApplicationDomain);
+	ConfMan.set("extrapath", "./extra", Common::ConfigManager::kApplicationDomain);
+	ConfMan.set("gui_scale", "90", Common::ConfigManager::kApplicationDomain);
 
 	// Load and setup the debuglevel and the debug flags. We do this at the
 	// soonest possible moment to ensure debug output starts early on, if
