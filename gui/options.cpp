@@ -144,11 +144,13 @@ static const char *guiBaseLabels[] = {
 	_s("Large"),
 	// I18N: Medium GUI scale
 	_s("Medium"),
+	// I18N: FunKey S GUI scale
+	_s("FunKey S"),
 	// I18N: Small GUI scale
 	_s("Small"),
 	nullptr
 };
-static const int guiBaseValues[] = { 150, 125, 100, 75, -1 };
+static const int guiBaseValues[] = { 150, 125, 100, 90, 75, -1 };
 
 // The keyboard mouse speed values range from 0 to 7 and correspond to speeds shown in the label
 // "10" (value 3) is the default speed corresponding to the speed before introduction of this control
