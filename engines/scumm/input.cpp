@@ -247,7 +247,7 @@ void ScummEngine::parseEvent(Common::Event event) {
 		if (isUsingOriginalGUI() && _mainMenuIsActive)
 			openMainMenuDialog();
 		break;
-	case Common::EVENT_RETURN_TO_LAUNCHER:
+	/*case Common::EVENT_RETURN_TO_LAUNCHER:
 	case Common::EVENT_QUIT:
 		if (isUsingOriginalGUI()) {
 			if (!_quitByGUIPrompt && !_mainMenuIsActive) {
@@ -267,7 +267,7 @@ void ScummEngine::parseEvent(Common::Event event) {
 					quitGame();
 			}
 		}
-		break;
+		break;*/
 	default:
 		break;
 	}
