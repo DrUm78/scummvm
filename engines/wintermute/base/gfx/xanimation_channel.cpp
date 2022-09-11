@@ -26,13 +26,13 @@
  */
 
 #include "engines/wintermute/base/base_game.h"
-#include "engines/wintermute/base/gfx/x/animation_channel.h"
+#include "engines/wintermute/base/gfx/xanimation_channel.h"
 #include "engines/wintermute/dcgf.h"
 
 namespace Wintermute {
 
 //////////////////////////////////////////////////////////////////////////
-AnimationChannel::AnimationChannel(BaseGame *inGame, ModelX *model) : BaseClass(inGame) {
+AnimationChannel::AnimationChannel(BaseGame *inGame, XModel *model) : BaseClass(inGame) {
 	_anim[0] = _anim[1] = nullptr;
 
 	_transitioning = false;

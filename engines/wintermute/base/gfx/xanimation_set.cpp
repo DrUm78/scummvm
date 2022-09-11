@@ -26,15 +26,15 @@
  */
 
 #include "engines/wintermute/base/base_game.h"
-#include "engines/wintermute/base/gfx/x/animation_set.h"
-#include "engines/wintermute/base/gfx/x/modelx.h"
-#include "engines/wintermute/base/gfx/x/loader_x.h"
+#include "engines/wintermute/base/gfx/xanimation_set.h"
+#include "engines/wintermute/base/gfx/xmodel.h"
+#include "engines/wintermute/base/gfx/xloader.h"
 #include "engines/wintermute/dcgf.h"
 
 namespace Wintermute {
 
 //////////////////////////////////////////////////////////////////////////
-AnimationSet::AnimationSet(BaseGame *inGame, ModelX *model) : BaseNamedObject(inGame) {
+AnimationSet::AnimationSet(BaseGame *inGame, XModel *model) : BaseNamedObject(inGame) {
 	_frameTime = -1;
 	_totalTime = 0;
 	_looping = false;

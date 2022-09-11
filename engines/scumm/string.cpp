@@ -153,8 +153,16 @@ void ScummEngine::showMessageDialog(const byte *msg) {
 	if (_string[3].color == 0)
 		_string[3].color = 4;
 
-	InfoDialog dialog(this, Common::U32String((char *)buf));
-	VAR(VAR_KEYPRESS) = runDialog(dialog);
+	if (isUsingOriginalGUI()) {
+		if (_game.version > 4)
+			VAR(VAR_KEYPRESS) = showBannerAndPause(0, -1, (const char *)msg).ascii;
+		else
+			VAR(VAR_KEYPRESS) = showOldStyleBannerAndPause((const char *)msg, _string[3].color, -1).ascii;
+	} else {
+		InfoDialog dialog(this, Common::U32String((char *)buf));
+		VAR(VAR_KEYPRESS) = runDialog(dialog);
+	}
+
 }
 
 #pragma mark -
@@ -785,7 +793,7 @@ void ScummEngine::CHARSET_1() {
 				restoreCharsetBg();
 		_msgCount = 0;
 	} else if (_game.version <= 2) {
-		_talkDelay += _msgCount * _defaultTalkDelay;
+		_talkDelay += _msgCount * _defaultTextSpeed;
 	}
 
 	if (_game.version > 3) {
@@ -887,7 +895,7 @@ void ScummEngine::CHARSET_1() {
 			mac_drawIndy3TextBox();
 
 		if (_game.version <= 2) {
-			_talkDelay += _defaultTalkDelay;
+			_talkDelay += _defaultTextSpeed;
 			VAR(VAR_CHARCOUNT)++;
 		} else {
 			_talkDelay += (int)VAR(VAR_CHARINC);
@@ -1104,7 +1112,7 @@ int ScummEngine::convertMessageToString(const byte *msg, byte *dst, int dstSize)
 	}
 
 	if (_game.version >= 7 || isScummvmKorTarget()) {
-		translateText(msg, transBuf);
+		translateText(msg, transBuf, sizeof(transBuf));
 		src = transBuf;
 	} else {
 		src = msg;
@@ -1697,10 +1705,10 @@ void ScummEngine_v7::playSpeech(const byte *ptr) {
 	}
 }
 
-void ScummEngine_v7::translateText(const byte *text, byte *trans_buff) {
+void ScummEngine_v7::translateText(const byte *text, byte *trans_buff, int transBufferSize) {
 	if (isScummvmKorTarget()) {
 		// Support language bundle for FT
-		ScummEngine::translateText(text, trans_buff);
+		ScummEngine::translateText(text, trans_buff, transBufferSize);
 		return;
 	}
 	LangIndexNode target;
@@ -1777,7 +1785,7 @@ void ScummEngine_v7::translateText(const byte *text, byte *trans_buff) {
 	}
 
 	if (found != NULL) {
-		strcpy((char *)trans_buff, _languageBuffer + found->offset);
+		Common::strlcpy((char *)trans_buff, _languageBuffer + found->offset, transBufferSize);
 
 		if ((_game.id == GID_DIG) && !(_game.features & GF_DEMO)) {
 			// Replace any '%___' by the corresponding special codes in the source text
@@ -1920,7 +1928,7 @@ const byte *ScummEngine::searchTranslatedLine(const byte *text, const Translatio
 	return nullptr;
 }
 
-void ScummEngine::translateText(const byte *text, byte *trans_buff) {
+void ScummEngine::translateText(const byte *text, byte *trans_buff, int transBufferSize) {
 	if (_existLanguageFile) {
 		if (_currentScript == 0xff) {
 			// used in drawVerb(), etc
@@ -1950,7 +1958,7 @@ void ScummEngine::translateText(const byte *text, byte *trans_buff) {
 					const byte *translatedText = searchTranslatedLine(text, scrpRange, true);
 					if (translatedText) {
 						debug(7, "translateText: Found by heuristic #1");
-						memcpy(trans_buff, translatedText, resStrLen(translatedText) + 1);
+						memcpy(trans_buff, translatedText, MIN<int>(resStrLen(translatedText) + 1, transBufferSize));
 						return;
 					}
 				}
@@ -1967,7 +1975,7 @@ void ScummEngine::translateText(const byte *text, byte *trans_buff) {
 					const byte *translatedText = searchTranslatedLine(text, scrpRange, true);
 					if (translatedText) {
 						debug(7, "translateText: Found by heuristic #2");
-						memcpy(trans_buff, translatedText, resStrLen(translatedText) + 1);
+						memcpy(trans_buff, translatedText, MIN<int>(resStrLen(translatedText) + 1, transBufferSize));
 						return;
 					}
 				}
@@ -1978,7 +1986,7 @@ void ScummEngine::translateText(const byte *text, byte *trans_buff) {
 		const byte *translatedText = searchTranslatedLine(text, TranslationRange(0, _numTranslatedLines - 1), false);
 		if (translatedText) {
 			debug(7, "translateText: Found by full search");
-			memcpy(trans_buff, translatedText, resStrLen(translatedText) + 1);
+			memcpy(trans_buff, translatedText, MIN<int>(resStrLen(translatedText) + 1, transBufferSize));
 			return;
 		}
 
@@ -1986,15 +1994,15 @@ void ScummEngine::translateText(const byte *text, byte *trans_buff) {
 	}
 
 	// Default: just copy the string
-	memcpy(trans_buff, text, resStrLen(text) + 1);
+	memcpy(trans_buff, text, MIN<int>(resStrLen(text) + 1, transBufferSize));
 }
 
-bool ScummEngine::reverseIfNeeded(const byte *text, byte *reverseBuf) const {
+bool ScummEngine::reverseIfNeeded(const byte *text, byte *reverseBuf, int reverseBufSize) const {
 	if (_language != Common::HE_ISR)
 		return false;
 	if (_game.id != GID_LOOM && _game.id != GID_ZAK)
 		return false;
-	strcpy(reinterpret_cast<char *>(reverseBuf), reinterpret_cast<const char *>(text));
+	Common::strlcpy(reinterpret_cast<char *>(reverseBuf), reinterpret_cast<const char *>(text), reverseBufSize);
 	fakeBidiString(reverseBuf, true);
 	return true;
 }
@@ -2019,7 +2027,7 @@ Common::CodePage ScummEngine::getDialogCodePage() const {
 			return Common::kWindows1255;
 		}
 	default:
-		return Common::kCodePageInvalid;
+		return (_game.version > 7) ? Common::kWindows1252 : Common::kDos850;
 	}
 }
 

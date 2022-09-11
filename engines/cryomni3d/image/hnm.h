@@ -19,43 +19,41 @@
  *
  */
 
-#ifndef WINTERMUTE_MESH_3DS_H
-#define WINTERMUTE_MESH_3DS_H
+#ifndef CRYOMNI3D_IMAGE_HNM_H
+#define CRYOMNI3D_IMAGE_HNM_H
 
-#include "common/memstream.h"
+#include "common/scummsys.h"
+#include "common/str.h"
+#include "graphics/pixelformat.h"
+#include "image/image_decoder.h"
 
-#include "math/vector4d.h"
+namespace Common {
+class SeekableReadStream;
+}
 
-namespace Wintermute {
+namespace Graphics {
+struct Surface;
+}
 
-struct GeometryVertex {
-	float x;
-	float y;
-	float z;
-};
+namespace Image {
+class HNM6Decoder;
 
-class Mesh3DS {
+class HNMFileDecoder : public ImageDecoder {
 public:
-	Mesh3DS();
-	virtual ~Mesh3DS();
-	virtual void fillVertexBuffer(uint32 color) = 0;
-	virtual bool loadFrom3DS(Common::MemoryReadStream &fileStream);
-	virtual void render() = 0;
-	virtual void dumpVertexCoordinates(const char *filename);
-	virtual int faceCount();
-	virtual uint16 *getFace(int index);
+	HNMFileDecoder(const Graphics::PixelFormat &format);
+	~HNMFileDecoder() override;
 
-	virtual int vertexCount();
-	virtual float *getVertexPosition(int index);
+	// ImageDecoder API
+	void destroy() override;
+	bool loadStream(Common::SeekableReadStream &stream) override;
+	const Graphics::Surface *getSurface() const override { return _surface; }
 
-protected:
-	GeometryVertex *_vertexData;
-	uint16 _vertexCount;
-	uint16 *_indexData;
-	uint16 _indexCount;
-	Math::Vector4d _color;
+private:
+	Graphics::PixelFormat _format;
+	HNM6Decoder *_codec;
+	const Graphics::Surface *_surface;
 };
 
-} // namespace Wintermute
+} // End of namespace Image
 
 #endif

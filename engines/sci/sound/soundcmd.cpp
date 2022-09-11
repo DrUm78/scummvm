@@ -396,10 +396,17 @@ reg_t SoundCommandParser::kDoSoundPause(EngineState *s, int argc, reg_t *argv) {
 		// perform this action, but the architecture of the ScummVM
 		// implementation is so different that it doesn't matter here
 		if (_soundVersion >= SCI_VERSION_2_1_EARLY && musicSlot->isSample) {
-			if (shouldPause) {
-				g_sci->_audio32->pause(ResourceId(kResourceTypeAudio, musicSlot->resourceId), musicSlot->soundObj);
-			} else {
-				g_sci->_audio32->resume(ResourceId(kResourceTypeAudio, musicSlot->resourceId), musicSlot->soundObj);
+			// LSL6HIRES didn't support pausing samples with kDoSoundFade. Its interpreter's
+			// pause code didn't call kDoAudio. This feature appeared in PQ4 CD's interpreter
+			// a month later, according to the date strings, even though they have the same
+			// version string. LSL6HIRES door sounds depend on these pause calls not having
+			// any effect. Bug #13555
+			if (g_sci->getGameId() != GID_LSL6HIRES) {
+				if (shouldPause) {
+					g_sci->_audio32->pause(ResourceId(kResourceTypeAudio, musicSlot->resourceId), musicSlot->soundObj);
+				} else {
+					g_sci->_audio32->resume(ResourceId(kResourceTypeAudio, musicSlot->resourceId), musicSlot->soundObj);
+				}
 			}
 		} else
 #endif
@@ -463,15 +470,15 @@ reg_t SoundCommandParser::kDoSoundFade(EngineState *s, int argc, reg_t *argv) {
 	}
 #endif
 
-	// If sound is not playing currently, set signal directly
-	if (musicSlot->status != kSoundPlaying) {
-		debugC(kDebugLevelSound, "kDoSound(fade): %04x:%04x fading requested, but sound is currently not playing", PRINT_REG(obj));
-		writeSelectorValue(_segMan, obj, SELECTOR(signal), SIGNAL_OFFSET);
-		return s->r_acc;
-	}
-
 	switch (argc) {
 	case 1: // SCI0
+		// If sound is not playing currently, set signal directly
+		if (musicSlot->status != kSoundPlaying) {
+			debugC(kDebugLevelSound, "kDoSound(fade): %04x:%04x fading requested, but sound is currently not playing", PRINT_REG(obj));
+			writeSelectorValue(_segMan, obj, SELECTOR(signal), SIGNAL_OFFSET);
+			return s->r_acc;
+		}
+
 		// SCI0 fades out all the time and when fadeout is done it will also
 		// stop the music from playing
 		musicSlot->fadeTo = 0;
@@ -632,7 +639,7 @@ void SoundCommandParser::processUpdateCues(reg_t obj) {
 		// fireworks).
 		// It is also needed in other games, e.g. LSL6 when talking to the
 		// receptionist (bug #5601).
-		// TODO: More thorougly check the different SCI version:
+		// TODO: More thoroughly check the different SCI version:
 		// * SCI1late sets signal to 0xFE here. (With signal 0xFF
 		//       duplicate music plays in LauraBow2CD - bug #6462)
 		//   SCI1middle LSL1 1.000.510 does not have the 0xFE;
@@ -641,7 +648,7 @@ void SoundCommandParser::processUpdateCues(reg_t obj) {
 		// * Need to check SCI0 behaviour.
 		uint16 sig;
 		if (getSciVersion() >= SCI_VERSION_1_LATE)
-			sig = 0xFFFE;
+			sig = 0x00fe;
 		else
 			sig = SIGNAL_OFFSET;
 		writeSelectorValue(_segMan, obj, SELECTOR(signal), sig);

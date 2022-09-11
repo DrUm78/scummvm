@@ -27,10 +27,10 @@
 
 #include "engines/wintermute/base/base_game.h"
 #include "engines/wintermute/base/gfx/base_renderer3d.h"
-#include "engines/wintermute/base/gfx/x/material.h"
-#include "engines/wintermute/base/gfx/x/frame_node.h"
-#include "engines/wintermute/base/gfx/x/modelx.h"
-#include "engines/wintermute/base/gfx/x/loader_x.h"
+#include "engines/wintermute/base/gfx/xmaterial.h"
+#include "engines/wintermute/base/gfx/xframe_node.h"
+#include "engines/wintermute/base/gfx/xmodel.h"
+#include "engines/wintermute/base/gfx/xloader.h"
 #include "engines/wintermute/dcgf.h"
 
 namespace Wintermute {
@@ -97,7 +97,7 @@ void FrameNode::setTransformation(int slot, Math::Vector3d pos, Math::Vector3d s
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool FrameNode::loadFromX(const Common::String &filename, XFileLexer &lexer, ModelX *model, Common::Array<MaterialReference> &materialReferences) {
+bool FrameNode::loadFromX(const Common::String &filename, XFileLexer &lexer, XModel *model, Common::Array<MaterialReference> &materialReferences) {
 	_gameRef->miniUpdate();
 
 	bool ret = true;
@@ -117,7 +117,7 @@ bool FrameNode::loadFromX(const Common::String &filename, XFileLexer &lexer, Mod
 			}
 		} else if (lexer.tokenIsIdentifier("Mesh")) {
 			lexer.advanceToNextToken();
-			MeshX *mesh = _gameRef->_renderer3D->createMeshX();
+			XMesh *mesh = _gameRef->_renderer3D->createXMesh();
 
 			if (mesh->loadFromX(filename, lexer, materialReferences)) {
 				_meshes.add(mesh);
@@ -165,7 +165,7 @@ bool FrameNode::loadFromX(const Common::String &filename, XFileLexer &lexer, Mod
 	return ret;
 }
 
-bool FrameNode::loadFromXAsRoot(const Common::String &filename, XFileLexer &lexer, ModelX *model, Common::Array<MaterialReference> &materialReferences) {
+bool FrameNode::loadFromXAsRoot(const Common::String &filename, XFileLexer &lexer, XModel *model, Common::Array<MaterialReference> &materialReferences) {
 	// technically, there is no root node in a .X file
 	// so we just start parsing it here
 	lexer.advanceToNextToken();
@@ -181,7 +181,7 @@ bool FrameNode::loadFromXAsRoot(const Common::String &filename, XFileLexer &lexe
 			}
 		} else if (lexer.tokenIsIdentifier("Mesh")) {
 			lexer.advanceToNextToken();
-			MeshX *mesh = _gameRef->_renderer3D->createMeshX();
+			XMesh *mesh = _gameRef->_renderer3D->createXMesh();
 
 			if (mesh->loadFromX(filename, lexer, materialReferences)) {
 				_meshes.add(mesh);
@@ -361,7 +361,7 @@ bool FrameNode::updateShadowVol(ShadowVolume *shadow, Math::Matrix4 &modelMat, c
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool FrameNode::render(ModelX *model) {
+bool FrameNode::render(XModel *model) {
 	bool res = true;
 
 	// render meshes

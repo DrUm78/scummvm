@@ -98,24 +98,6 @@ public:
 		resize(newSize, elem);
 	}
 
-	typename Common::Array<T>::iterator erase(typename Common::Array<T>::iterator pos) {
-		return Common::Array<T>::erase(pos);
-	}
-
-	typename Common::Array<T>::iterator erase(typename Common::Array<T>::iterator first,
-			typename Common::Array<T>::iterator last) {
-		Common::copy(last, this->_storage + this->_size, first);
-
-		int count = (last - first);
-		this->_size -= count;
-
-		// We also need to destroy the objects beyond the new size
-		for (uint idx = this->_size; idx < (this->_size + count); ++idx)
-			this->_storage[idx].~T();
-
-		return first;
-	}
-
 	void swap(vector &arr) {
 		SWAP(this->_capacity, arr._capacity);
 		SWAP(this->_size, arr._size);
@@ -226,24 +208,6 @@ public:
 		for (; it != end() && *it != item; ++it) {
 		}
 		return it;
-	}
-};
-
-struct PointerHash {
-	Common::Hash<const char *> hash;
-
-	uint operator()(const void *ptr) const {
-		Common::String str = Common::String::format("%p", ptr);
-		return hash.operator()(str.c_str());
-	}
-};
-
-template<class Key, class Val, class HashFunc = Common::Hash<Key>,
-		 class EqualFunc = Common::EqualTo<Key> >
-class map : public Common::HashMap<Key, Val, HashFunc, EqualFunc> {
-public:
-	void insert(Common::Pair<Key, Val> elem) {
-		this->operator[](elem.first) = elem.second;
 	}
 };
 

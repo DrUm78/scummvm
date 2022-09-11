@@ -25,12 +25,12 @@
  * Copyright (c) 2003-2013 Jan Nedoma and contributors
  */
 
-#ifndef WINTERMUTE_FRAME_NODE_H
-#define WINTERMUTE_FRAME_NODE_H
+#ifndef WINTERMUTE_XFRAME_NODE_H
+#define WINTERMUTE_XFRAME_NODE_H
 
 #include "engines/wintermute/base/base_named_object.h"
-#include "engines/wintermute/base/gfx/x/meshx.h"
-#include "engines/wintermute/base/gfx/x/modelx.h"
+#include "engines/wintermute/base/gfx/xmesh.h"
+#include "engines/wintermute/base/gfx/xmodel.h"
 #include "engines/wintermute/coll_templ.h"
 
 #include "math/matrix4.h"
@@ -39,7 +39,7 @@
 
 namespace Wintermute {
 
-class ModelX;
+class XModel;
 class BaseSprite;
 class XFileLexer;
 
@@ -51,12 +51,12 @@ public:
 	bool updateMatrices(Math::Matrix4 &parentMat);
 	bool updateMeshes();
 	bool resetMatrices();
-	bool render(ModelX *model);
+	bool render(XModel *model);
 	bool renderFlatShadowModel();
 	bool updateShadowVol(ShadowVolume *shadow, Math::Matrix4 &modelMat, const Math::Vector3d &light, float extrusionDepth);
 
-	bool loadFromX(const Common::String &filename, XFileLexer &lexer, ModelX *model, Common::Array<MaterialReference> &materialReferences);
-	bool loadFromXAsRoot(const Common::String &filename, XFileLexer &lexer, ModelX *model, Common::Array<MaterialReference> &materialReferences);
+	bool loadFromX(const Common::String &filename, XFileLexer &lexer, XModel *model, Common::Array<MaterialReference> &materialReferences);
+	bool loadFromXAsRoot(const Common::String &filename, XFileLexer &lexer, XModel *model, Common::Array<MaterialReference> &materialReferences);
 	bool findBones(FrameNode *rootFrame);
 	FrameNode *findFrame(const char *frameName);
 	Math::Matrix4 *getCombinedMatrix();
@@ -77,7 +77,7 @@ public:
 
 protected:
 	BaseArray<FrameNode *> _frames;
-	BaseArray<MeshX *> _meshes;
+	BaseArray<XMesh *> _meshes;
 
 	Math::Matrix4 _transformationMatrix;
 	Math::Matrix4 _originalMatrix;

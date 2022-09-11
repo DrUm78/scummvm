@@ -957,6 +957,10 @@ const byte *ScummEngine::postProcessDOSGraphics(VirtScreen *vs, int &pitch, int 
 
 	} else if (renderV1 && vs->number == kTextVirtScreen) {
 		// For EGA, the only colors that need remapping are for the kTextVirtScreen.
+		// ZAKv1 is the only game that is affected by this. The original interpreter
+		// will also apply this mapping in VGA mode (as we do) but not in MCGA mode.
+		// So, should we ever decide to offer a separate MCGA render mode, then we
+		// should skip this for that mode...
 		for (uint8 i = 0; i < ARRAYSIZE(tmpTxtColMap); ++i)
 			tmpTxtColMap[i] = _gdi->remapColorToRenderMode(i);
 		for (int h = height; h; --h)  {
@@ -1251,7 +1255,8 @@ void ScummEngine::restoreCharsetBg() {
 	_nextLeft = _string[0].xpos;
 	_nextTop = _string[0].ypos + _screenTop;
 
-	if (_charset->_hasMask) {
+	if (_charset->_hasMask || _postGUICharMask) {
+		_postGUICharMask = false;
 		_charset->_hasMask = false;
 		_charset->_str.left = -1;
 		_charset->_left = -1;
@@ -1577,6 +1582,11 @@ void ScummEngine::drawBox(int x, int y, int x2, int y2, int color) {
 }
 
 void ScummEngine::drawLine(int x1, int y1, int x2, int y2, int color) {
+	if (_game.platform == Common::kPlatformFMTowns) {
+		drawBox(x1, y1, x2, y2, color);
+		return;
+	}
+
 	int effColor, black, white;
 	int effX1, effY1;
 	int width, height, widthAccumulator, heightAccumulator, horizontalStrips, originalHeight;
@@ -1655,11 +1665,10 @@ void ScummEngine::drawLine(int x1, int y1, int x2, int y2, int color) {
 void ScummEngine::drawPixel(VirtScreen *vs, int x, int y, int16 color, bool useBackbuffer) {
 	if (x >= 0 && y >= 0 && _screenWidth + 8 > x && _screenHeight > y) {
 		if (useBackbuffer)
-			memset(vs->getBackPixels(x, y + _screenTop), color, 1);
+			*(vs->getBackPixels(x, y + _screenTop - vs->topline)) = color;
 		else
-			memset(vs->getPixels(x, y + _screenTop), color, 1);
-
-		markRectAsDirty(vs->number, x, x + 1, y + _screenTop, y + 1 + _screenTop);
+			*(vs->getPixels(x, y + _screenTop - vs->topline)) = color;
+		markRectAsDirty(vs->number, x, x + 1, y + _screenTop - vs->topline, y + 1 + _screenTop - vs->topline);
 	}
 }
 

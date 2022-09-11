@@ -25,14 +25,15 @@
  * Copyright (c) 2003-2013 Jan Nedoma and contributors
  */
 
-#ifndef WINTERMUTE_MODEL_X_H
-#define WINTERMUTE_MODEL_X_H
+#ifndef WINTERMUTE_XMODEL_H
+#define WINTERMUTE_XMODEL_H
 
 #include "engines/wintermute/base/base_object.h"
 #include "engines/wintermute/base/base_sprite.h"
 #include "engines/wintermute/coll_templ.h"
 #include "engines/wintermute/math/rect32.h"
 #include "engines/wintermute/video/video_theora_player.h"
+#include "engines/wintermute/utils/utils.h"
 
 #include "math/matrix4.h"
 #include "math/vector3d.h"
@@ -54,46 +55,40 @@ struct MaterialReference {
 
 #define X_NUM_ANIMATION_CHANNELS 10
 
-class ModelX : public BaseObject {
+class XModel : public BaseObject {
 private:
 	// the D3DX effect stuff is missing here
 	// at the moment I am not aware of whether this is used
 	// in Alpha Polaris or any other WME game
 	// if it is, then this would mean a decent amount of work
 	// since we would need to parse and emulate D3DX effects in OpenGL
-	class ModelXMatSprite {
+	class XModelMatSprite {
 	public:
 		char *_matName;
 		BaseSprite *_sprite;
 		VideoTheoraPlayer *_theora;
 
-		ModelXMatSprite() {
+		XModelMatSprite() {
 			_matName = nullptr;
 			_sprite = nullptr;
 			_theora = nullptr;
 		}
 
-		ModelXMatSprite(const char *matName, BaseSprite *sprite) {
+		XModelMatSprite(const char *matName, BaseSprite *sprite) {
 			_theora = nullptr;
 			_matName = nullptr;
-			uint32 size = strlen(matName);
-			_matName = new char[size + 1];
-			Common::copy(matName, matName + size, _matName);
-			_matName[size] = 0;
+			BaseUtils::setString(&_matName, matName);
 			_sprite = sprite;
 		}
 
-		ModelXMatSprite(const char *matName, VideoTheoraPlayer *theora) {
+		XModelMatSprite(const char *matName, VideoTheoraPlayer *theora) {
 			_sprite = nullptr;
 			_matName = nullptr;
-			uint32 size = strlen(matName);
-			_matName = new char[size + 1];
-			Common::copy(matName, matName + size, _matName);
-			_matName[size] = 0;
+			BaseUtils::setString(&_matName, matName);
 			_theora = theora;
 		}
 
-		~ModelXMatSprite() {
+		~XModelMatSprite() {
 			delete[] _matName;
 			delete _sprite;
 			delete _theora;
@@ -134,14 +129,14 @@ public:
 	// so should be fine for our purposes
 	const static int kDefaultTicksPerSecond = 4800;
 
-	DECLARE_PERSISTENT(ModelX, BaseObject)
+	DECLARE_PERSISTENT(XModel, BaseObject)
 
-	ModelX(BaseGame *inGame, BaseObject *owner);
-	virtual ~ModelX();
+	XModel(BaseGame *inGame, BaseObject *owner);
+	virtual ~XModel();
 
-	ModelX *_parentModel;
+	XModel *_parentModel;
 
-	bool loadFromFile(const Common::String &filename, ModelX *parentModel = nullptr);
+	bool loadFromFile(const Common::String &filename, XModel *parentModel = nullptr);
 	bool mergeFromFile(const Common::String &filename);
 
 	bool update() override;
@@ -189,7 +184,7 @@ public:
 
 private:
 	void cleanup(bool complete = true);
-	bool findBones(bool animOnly = false, ModelX *parentModel = nullptr);
+	bool findBones(bool animOnly = false, XModel *parentModel = nullptr);
 
 	void parseFrameDuringMerge(XFileLexer &lexer, const Common::String &filename);
 
@@ -212,7 +207,7 @@ protected:
 
 	FrameNode *_rootFrame;
 
-	BaseArray<ModelXMatSprite *> _matSprites;
+	BaseArray<XModelMatSprite *> _matSprites;
 };
 
 } // namespace Wintermute

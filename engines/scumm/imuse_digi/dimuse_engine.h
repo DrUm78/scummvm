@@ -110,6 +110,7 @@ private:
 	int _stopSequenceFlag;
 	int _scriptInitializedFlag;
 	char _emptyMarker[1];
+	bool _spooledMusicEnabled;
 
 	int _usecPerInt; // Microseconds between each callback (will be set to 50 Hz)
 	int _callbackInterruptFlag;
@@ -240,11 +241,11 @@ private:
 	void dispatchPredictFirstStream();
 	int dispatchNavigateMap(IMuseDigiDispatch *dispatchPtr);
 	int dispatchGetMap(IMuseDigiDispatch *dispatchPtr);
-	int dispatchConvertMap(uint8 *rawMap, uint8 *destMap);
-	int32 *dispatchGetNextMapEvent(int32 *mapPtr, int32 soundOffset, int32 *mapEvent);
+	int dispatchConvertMap(uint8 *rawMap, int32 *destMap);
+	uint8 *dispatchGetNextMapEvent(int32 *mapPtr, int32 soundOffset, uint8 *mapEvent);
 	void dispatchPredictStream(IMuseDigiDispatch *dispatchPtr);
-	int32 *dispatchCheckForJump(int32 *mapPtr, IMuseDigiStreamZone *strZnPtr, int &candidateHookId);
-	void dispatchPrepareToJump(IMuseDigiDispatch *dispatchPtr, IMuseDigiStreamZone *strZnPtr, int32 *jumpParamsFromMap, int calledFromGetNextMapEvent);
+	uint8 *dispatchCheckForJump(int32 *mapPtr, IMuseDigiStreamZone *strZnPtr, int &candidateHookId);
+	void dispatchPrepareToJump(IMuseDigiDispatch *dispatchPtr, IMuseDigiStreamZone *strZnPtr, uint8 *jumpParamsFromMap, int calledFromGetNextMapEvent);
 	void dispatchStreamNextZone(IMuseDigiDispatch *dispatchPtr, IMuseDigiStreamZone *strZnPtr);
 	IMuseDigiStreamZone *dispatchAllocateStreamZone();
 	uint8 *dispatchAllocateFade(int32 &fadeSize, const char *functionName);
@@ -387,6 +388,8 @@ public:
 	int diMUSESetSequence(int soundId);
 	int diMUSESetCuePoint(int cueId);
 	int diMUSESetAttribute(int attrIndex, int attrVal);
+	void diMUSEEnableSpooledMusic();
+	void diMUSEDisableSpooledMusic();
 
 	// Utils
 	int addTrackToList(IMuseDigiTrack **listPtr, IMuseDigiTrack *listPtr_Item);

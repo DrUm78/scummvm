@@ -4,8 +4,8 @@
 # GAMEID <TAB> DESCRIPTION
 # After this follows an arbitrary number of lines start with a tab. Each line
 # describes one specific variant of the game. It contains tab separated data:
-#  - MD5
-#  - file size (or -1 if unknown)
+#  - MD5 (first 1,048,576 bytes)
+#  - file size (or -1 if unknown, but only in last resort)
 #  - Language (two letter code)
 #  - Platform
 #  - Variant id
@@ -39,15 +39,11 @@
 # of detect files, automatically inserting the values in here:
 #
 # #!/bin/sh
-# OIFS=$IFS
-# IFS="
-# "
-# for i in `find -name 00.*` `find -name 000.*` `find -name *.??0` `find -name *Data*` ; do
-#	m=`head -c 1048576 "$i" | md5sum | cut -f1 -d' '` ;
-#	s=`du -b "$i" | cut -f1` ;
-#	sed -i -e "s/$m\t-1/$m\t$s/" /PATH/TO/scumm-md5.txt ;
+# find . \( -name '00.*' -o -name '000.*' -o -name '*.??0' -o -name '*Data*' \) -type f | while read -r i; do
+#	m=$(dd if="$i" bs=1024k count=1 2>/dev/null | openssl dgst -md5 | awk '{print $NF}')
+#	s=$(wc -c < "$i" | awk '{print $1}')
+#	sed -i -e "s/$m\t-1/$m\t$s/" /PATH/TO/scumm-md5.txt
 # done
-# IFS=$OIFS
 #
 maniac	Maniac Mansion
 	2d624d1b214f7faf0094daea65c6d1a6	1188	en	2gs	Apple II	-	-
@@ -276,7 +272,7 @@ monkey2	Monkey Island 2: LeChuck's Revenge
 	da09e666fc8f5b78d7b0ac65d1a3b56e	11135	en	FM-TOWNS	FM-TOWNS	-	-	dhewg, Andrea Petrucci
 	430bc518017b6fac046f58bab6baad5d	-1	jp	FM-TOWNS	FM-TOWNS	-	-	Antti Leimi, Andrea Petrucci
 
-	387a544b8b10b26912d8413bab63a853	9770	en	DOS	-	Demo	non-interactive, v2.5.1 9/30/91	khalek
+	387a544b8b10b26912d8413bab63a853	9770	en	DOS	Demo	Demo	non-interactive, v2.5.1 9/30/91	khalek
 	f4d20ab4ce19743a646cb48bd93aee72	10835	en	DOS	SE Talkie	Unofficial SE Talkie v0.2	lotharsm
 	a95baf7746f1be4985ad42126993a744	-1	ko	DOS	-	-	Fan translation	ScummVM-Kor
 	9f0a200df45c1c6c944cda21c134ff50	10835	he	DOS	SE Talkie	Unofficial SE Talkie v0.2	Hebrew fan translation

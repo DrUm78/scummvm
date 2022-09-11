@@ -26,14 +26,14 @@
  */
 
 #include "engines/wintermute/base/base_game.h"
-#include "engines/wintermute/base/gfx/x/active_animation.h"
-#include "engines/wintermute/base/gfx/x/modelx.h"
+#include "engines/wintermute/base/gfx/xactive_animation.h"
+#include "engines/wintermute/base/gfx/xmodel.h"
 #include "engines/wintermute/dcgf.h"
 
 namespace Wintermute {
 
 //////////////////////////////////////////////////////////////////////////
-ActiveAnimation::ActiveAnimation(BaseGame *inGame, ModelX *model) : BaseClass(inGame) {
+ActiveAnimation::ActiveAnimation(BaseGame *inGame, XModel *model) : BaseClass(inGame) {
 	_model = model;
 
 	_animation = nullptr;

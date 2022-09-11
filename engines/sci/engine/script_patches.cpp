@@ -1839,7 +1839,7 @@ static const uint16 fanmadePatchDemoQuestInfiniteLoop[] = {
 //
 // Applies to: Fan games built with the SCI Studio / SCI Companion SCI0 template
 // Responsible method: TheMenuBar:handleEvent
-static const uint16 fangameSignatureVolumeSlider[] = {
+static const uint16 fangameSignatureVolumeSlider1[] = {
 	0x39, SIG_SELECTOR8(doit),       // pushi doit
 	SIG_ADDTOOFFSET(+1),             // push1 [ opcode 79 instead of 78 in some games ]
 	SIG_ADDTOOFFSET(+1),             // push2 [ opcode 7b instead of 7a in some games ]
@@ -1850,7 +1850,7 @@ static const uint16 fangameSignatureVolumeSlider[] = {
 	SIG_END
 };
 
-static const uint16 fangamePatchVolumeSlider[] = {
+static const uint16 fangamePatchVolumeSlider1[] = {
 	PATCH_ADDTOOFFSET(+3),
 	0x39, 0x01,                      // pushi 01
 	0x38, PATCH_UINT16(0x0008),      // pushi 0008 [ volume ]
@@ -1858,10 +1858,71 @@ static const uint16 fangamePatchVolumeSlider[] = {
 	PATCH_END
 };
 
+static const uint16 fangameSignatureVolumeSlider2[] = {
+	0x38, SIG_SELECTOR16(doit),      // pushi doit
+	0x39, 0x01,                      // pushi 01
+	0x39, 0x02,                      // pushi 02
+	SIG_MAGICDWORD,
+	0x38, SIG_UINT16(0x0008),        // pushi 0808 [ volume ]
+	0x8d, 0x03,                      // lst 03     [ uninitialized variable ]
+	0x43, 0x31, 0x04,                // callk DoSound 04 [ set volume and return previous ]
+	SIG_END
+};
+
+static const uint16 fangamePatchVolumeSlider2[] = {
+	PATCH_ADDTOOFFSET(+5),
+	0x39, 0x01,                      // pushi 01
+	PATCH_ADDTOOFFSET(+3),
+	0x33, 0x00,                      // jmp 00
+	0x43, 0x31, 0x02,                // callk DoSound 02 [ return volume ]
+	PATCH_END
+};
+
+// Fan games based on the SCI Studio template reset their volume to 15 (max) in
+//  the init method of their game object in script 0. As with most SCI32 games,
+//  we patch this out so that the volume stored in ScummVM is used.
+// 
+// Applies to: Fan games built with the SCI Studio / SCI Companion SCI0 template
+// Responsible method: Template:init (the Game object in script 0)
+// Fixes bug: #13795
+static const uint16 fangameSignatureVolumeReset1[] = {
+	0x35, 0x0f,                      // ldi 0f
+	SIG_ADDTOOFFSET(+1), 0x1d,       // sag 1d   [ sag or sal depending on compiler ] 
+	SIG_ADDTOOFFSET(+1),             // push2    [ opcode 7b instead of 7a in some games ]
+	0x39, 0x08,                      // pushi 08 [ volume ]
+	SIG_ADDTOOFFSET(+1),             // lsg 1d   [ lsg or lsl depending on compiler ]
+	SIG_MAGICDWORD, 0x1d,      
+	0x43, 0x31, 0x04,                // callk DoSound 04
+	SIG_END
+};
+
+static const uint16 fangamePatchVolumeReset1[] = {
+	0x33, 0x0a,                      // jmp 0a
+	PATCH_END
+};
+
+static const uint16 fangameSignatureVolumeReset2[] = {
+	0x34, SIG_UINT16(0x000f),        // ldi 0f
+	0xa1, 0x1d,                      // sag 1d
+	0x39, 0x02,                      // pushi 02
+	0x38, SIG_UINT16(0x0008),        // pushi 0008 [ volume ]
+	0x89, SIG_MAGICDWORD, 0x1d,      // lsg 1d
+	0x43, 0x31, 0x04,                // callk DoSound 04
+	SIG_END
+};
+
+static const uint16 fangamePatchVolumeReset2[] = {
+	0x33, 0x0d,                      // jmp 0d
+	PATCH_END
+};
+
 //          script, description,                                      signature                                  patch
 static const SciScriptPatcherEntry fanmadeSignatures[] = {
+	{  true,     0, "SCI Template: disable volume reset",          1, fangameSignatureVolumeReset1,              fangamePatchVolumeReset1 },
+	{  true,     0, "SCI Template: disable volume reset",          1, fangameSignatureVolumeReset2,              fangamePatchVolumeReset2 },
 	{  true,   994, "Cascade Quest: fix auto-saving",              1, fanmadeSignatureCascadeQuestFixAutoSaving, fanmadePatchCascadeQuestFixAutoSaving },
-	{  true,   997, "SCI Template: fix volume slider",             1, fangameSignatureVolumeSlider,              fangamePatchVolumeSlider },
+	{  true,   997, "SCI Template: fix volume slider",             1, fangameSignatureVolumeSlider1,             fangamePatchVolumeSlider1 },
+	{  true,   997, "SCI Template: fix volume slider",             1, fangameSignatureVolumeSlider2,             fangamePatchVolumeSlider2 },
 	{  true,   999, "Demo Quest: infinite loop on typo",           1, fanmadeSignatureDemoQuestInfiniteLoop,     fanmadePatchDemoQuestInfiniteLoop },
 	SCI_SIGNATUREENTRY_TERMINATOR
 };
@@ -9446,6 +9507,49 @@ static const uint16 laurabow2CDPatchFixYvetteTutResponse[] = {
 	PATCH_END
 };
 
+// In the CD version, Wolf stands facing the wrong direction in most scenes.
+//  O'Riley also does this in the Old Masters Gallery. Their views were reduced
+//  from nine loops to five in the CD version, but the scripts weren't updated.
+//  They still set the actors' loops to eight instead of four. kAnimate adjusts
+//  invalid cels and the result is usually the last cel in the last loop, which
+//  is the actor standing facing north west.
+//
+// We fix this by setting the correct loop in the CD version so that Wolf and
+//  O'Riley face the direction the scripts request like in the floppy versions.
+//  This patch is only enabled in the CD version since the scripts don't change.
+//
+// Applies to: English CD
+// Responsible methods: sPartysOver:changeState, rm400:init, sHeimlichShoos:changeState
+//                      sEnterNorth:changeState, rm500:init, rm650:init
+static const uint16 laurabow2CDSignatureFixMuseumActorLoops1[] = {
+	0x38, SIG_SELECTOR16(setLoop),      // pushi setLoop
+	0x78,                               // push1
+	0x39, SIG_MAGICDWORD, 0x08,         // pushi 08 [ standing loop in floppy ]
+	0x38, SIG_SELECTOR16(setCel),       // pushi setCel
+	SIG_END
+};
+
+static const uint16 laurabow2CDPatchFixMuseumActorLoops1[] = {
+	PATCH_ADDTOOFFSET(+4),
+	0x39, 0x04,                         // pushi 04 [ standing loop in CD ]
+	PATCH_END
+};
+
+static const uint16 laurabow2CDSignatureFixMuseumActorLoops2[] = {
+	0x39, SIG_SELECTOR8(loop),          // pushi loop
+	0x78,                               // push1
+	SIG_MAGICDWORD,
+	0x39, 0x08,                         // pushi 08 [ standing loop in floppy ]
+	0x39, SIG_SELECTOR8(cel),           // pushi cel
+	SIG_END
+};
+
+static const uint16 laurabow2CDPatchFixMuseumActorLoops2[] = {
+	PATCH_ADDTOOFFSET(+3),
+	0x39, 0x04,                         // pushi 04 [ standing loop in CD ]
+	PATCH_END
+};
+
 // When entering the main musem party room (w/ the golden Egyptian head), Laura
 // is walking a bit into the room automatically. If you press a mouse button
 // while this is happening, you will get stuck inside that room and won't be
@@ -9637,6 +9741,31 @@ static const uint16 laurabow2SignatureFixArmorHallDoorPathfinding[] = {
 static const uint16 laurabow2PatchFixArmorHallDoorPathfinding[] = {
 	PATCH_ADDTOOFFSET(+2),
 	0x39, 0x7f,                         // pushi 7f [ y = 127 ]
+	PATCH_END
+};
+
+// Clicking most inventory items on the Dagger of Amon Ra case in the Egyptian
+//  exhibit errors the floppy versions. The doVerb methods contain nonsensical
+//  instructions that attempt to access a non-existent class and property.
+//  This would silently fail in the original. It was fixed in the CD version.
+//
+// We patch out the illegal class instructions to avoid the error.
+//
+// Applies to: All floppy versions
+// Responsible methods: glass:doVerb, daggerCase:doVerb
+static const uint16 laurabow2SignatureFixDaggerCaseError[] = {
+	0x81, SIG_MAGICDWORD, 0x5b,         // lag 5b
+	0x4a, 0x0a,                         // send 4a
+	0x33, SIG_ADDTOOFFSET(+1),          // jmp [ end of method ]
+	0x50, SIG_ADDTOOFFSET(+2),          // class ????
+	SIG_END
+};
+
+static const uint16 laurabow2PatchFixDaggerCaseError[] = {
+	PATCH_ADDTOOFFSET(+6),
+	0x18,                               // not [ acc = 1 ]
+	0x3a,                               // toss
+	0x48,                               // ret
 	PATCH_END
 };
 
@@ -10030,6 +10159,92 @@ static const uint16 laurabow2CDPatchFixIntroMusic[] = {
 	PATCH_END
 };
 
+// At the start of act 4, if actBreak (room 26) finishes before its music fades
+//  out then the CD version gets stuck playing the happy act break music instead
+//  of the suspenseful museum music. This happens when quickly closing the
+//  message at the end of the break or even if the message is just one of the
+//  shorter ones. This is another CD regression due to Sound class changes.
+//
+// actBreak plays sound 30 using gameMusic1. After the act 4 break, rm510:init
+//  re-initializes music with WrapMusic:init. WrapMusic also uses gameMusic1,
+//  and it only plays a new sound if gameMusic1:prevSignal equals 0 or -1.
+//  In floppy versions this was always true because Sound:play resets prevSignal
+//  to 0, but CD doesn't. gameMusic1:prevSignal is 254 at the end of act 3 so if
+//  the actBreak fade completes in the CD version then the interpreter sets the
+//  signal to -1 and the music correctly changes. But if rm510:init runs before
+//  the fade completes then WrapMusic keeps playing sound 30 throughout act 4.
+//
+// We fix this by setting gameMusic1:prevSignal to 0 at the end of actBreak.
+//  We make room by overwriting a script's dispose call. The call is unnecessary
+//  because the room is already changing and that also disposes the script.
+//
+// Applies to: English CD
+// Responsible method: sBreakIt:changeState(9)
+static const uint16 laurabow2CDSignatureFixAct4WrongMusic[] = {
+	0x81, 0x66,                         // lag 66
+	0x4a, 0x0c,                         // send 0c [ gameMusic1 fade: ... ]
+	0xc1, 0x7b,                         // +ag 7b
+	0x35, 0x00,                         // ldi 00
+	0xa1, SIG_MAGICDWORD, 0x7c,         // sag 7c
+	0x38, SIG_UINT16(0x0183),           // pushi 0183 [ newRoom, CD selector ]
+	SIG_ADDTOOFFSET(+7),
+	0x39, 0x6f,                         // pushi dispose
+	0x76,                               // push0
+	0x54, 0x04,                         // self 04 [ self dispose: (unnecessary )]
+	SIG_END
+};
+
+static const uint16 laurabow2CDPatchFixAct4WrongMusic[] = {
+	0x38, PATCH_UINT16(0x00ab),         // pushi 00ab [ prevSignal ]
+	0x78,                               // push1
+	0x76,                               // push0
+	0xc1, 0x7b,                         // +ag 7b
+	0x76,                               // push0
+	0xa9, 0x7c,                         // ssg 7c
+	PATCH_ADDTOOFFSET(+10),
+	0x80, PATCH_UINT16(0x0066),         // lag 0066
+	0x4a, 0x12,                         // send 12 [ gameMusic1 fade: ... prevSignal: 0 ]
+	PATCH_END
+};
+
+// The music volume in acts 3 and 4 can be permanently lowered by clock chimes.
+//
+// In acts 3 and 4, WrapMusic plays sounds 90 through 93 in a loop in most
+//  museum rooms. WrapMusic:vol contains the volume that the music should start
+//  at and fade to when unpausing. It's initialized to 127 (max) and no other
+//  scripts change this. WrapMusic:vol is effectively the maximum volume for the
+//  gameMusic1 Sound object. Once lowered, it can never be raised.
+//
+// WrapMusic:cue records gameMusic1:vol in WrapMusic:vol when both objects are
+//  in certain states. When a body is discovered, multiple fades occur at once,
+//  and if the clock is shown then it applies its own fades and tries to save
+//  and restore all other Sound volumes. Depending on timings such as the game
+//  speed setting and the system clock's sub-second value, WrapMusic:cue can run
+//  when gameMusic1:vol is less than 127. This permanently lowers the volume and
+//  can occur multiple times. It's most likely to occur when discovering the
+//  body in the dinosaur room (430).
+//
+// We fix this by always updating WrapMusic:vol to 127 since the game doesn't
+//  expect it to change. This also fixes save games created before this patch.
+//
+// Applies to: All versions
+// Responsible method: WrapMusic:cue
+static const uint16 laurabow2SignatureMuseumMusicVolume[] = {
+	0x39, 0x5e,                         // pushi vol [ same selector in all versions ]
+	0x76,                               // push0
+	0x63, 0x16,                         // pToa wrapSound
+	SIG_MAGICDWORD,
+	0x4a, 0x04,                         // send 04 [ wrapSound vol? ]
+	0x65, 0x1c,                         // aTop vol
+	SIG_END
+};
+
+static const uint16 laurabow2PatchMuseumMusicVolume[] = {
+	0x35, 0x7f,                         // ldi 7f
+	0x32, PATCH_UINT16(0x0002),         // jmp 0002 [ vol = 127 ]
+	PATCH_END
+};
+
 // LB2CD reduces the music volume significantly during the introduction when
 //  characters talk while disembarking the ship in room 120. This is done so
 //  that their speech can be heard but it also occurs in text-only mode.
@@ -10173,15 +10388,22 @@ static const uint16 laurabow2CDPatchAudioTextMenuSupport2[] = {
 //          script, description,                                      signature                                      patch
 static const SciScriptPatcherEntry laurabow2Signatures[] = {
 	{  true,   560, "CD: painting closing immediately",               1, laurabow2CDSignaturePaintingClosing,            laurabow2CDPatchPaintingClosing },
+	{  true,     0, "CD/Floppy: museum music volume",                 1, laurabow2SignatureMuseumMusicVolume,            laurabow2PatchMuseumMusicVolume },
 	{  true,     0, "CD: fix problematic icon bar",                   1, laurabow2CDSignatureFixProblematicIconBar,      laurabow2CDPatchFixProblematicIconBar },
+	{  true,    26, "CD: fix act 4 wrong music",                      1, laurabow2CDSignatureFixAct4WrongMusic,          laurabow2CDPatchFixAct4WrongMusic },
 	{  true,    90, "CD: fix yvette's tut response",                  1, laurabow2CDSignatureFixYvetteTutResponse,       laurabow2CDPatchFixYvetteTutResponse },
 	{  true,   110, "CD: fix intro music",                            1, laurabow2CDSignatureFixIntroMusic,              laurabow2CDPatchFixIntroMusic },
 	{  true,   350, "CD/Floppy: museum party fix entering south 1/2", 1, laurabow2SignatureMuseumPartyFixEnteringSouth1, laurabow2PatchMuseumPartyFixEnteringSouth1 },
 	{  true,   350, "CD/Floppy: museum party fix entering south 2/2", 1, laurabow2SignatureMuseumPartyFixEnteringSouth2, laurabow2PatchMuseumPartyFixEnteringSouth2 },
+	{ false,   355, "CD: fix museum actor loops",                     2, laurabow2CDSignatureFixMuseumActorLoops1,       laurabow2CDPatchFixMuseumActorLoops1 },
 	{  true,   430, "CD/Floppy: make wired east door persistent",     1, laurabow2SignatureRememberWiredEastDoor,        laurabow2PatchRememberWiredEastDoor },
 	{  true,   430, "CD/Floppy: fix wired east door",                 1, laurabow2SignatureFixWiredEastDoor,             laurabow2PatchFixWiredEastDoor },
 	{  true,   448, "CD/Floppy: fix armor hall door pathfinding",     1, laurabow2SignatureFixArmorHallDoorPathfinding,  laurabow2PatchFixArmorHallDoorPathfinding },
+	{ false,   400, "CD: fix museum actor loops",                     4, laurabow2CDSignatureFixMuseumActorLoops1,       laurabow2CDPatchFixMuseumActorLoops1 },
+	{ false,   420, "CD: fix museum actor loops",                     1, laurabow2CDSignatureFixMuseumActorLoops1,       laurabow2CDPatchFixMuseumActorLoops1 },
+	{  true,   450, "Floppy: fix dagger case error",                  2, laurabow2SignatureFixDaggerCaseError,           laurabow2PatchFixDaggerCaseError },
 	{  true,   460, "CD/Floppy: fix crate room east door lockup",     1, laurabow2SignatureFixCrateRoomEastDoorLockup,   laurabow2PatchFixCrateRoomEastDoorLockup },
+	{ false,   500, "CD: fix museum actor loops",                     3, laurabow2CDSignatureFixMuseumActorLoops1,       laurabow2CDPatchFixMuseumActorLoops1 },
 	{  true,  2660, "CD/Floppy: fix elevator lockup",                 1, laurabow2SignatureFixElevatorLockup,            laurabow2PatchFixElevatorLockup },
 	{  true,   550, "CD/Floppy: fix back rub east entrance lockup",   1, laurabow2SignatureFixBackRubEastEntranceLockup, laurabow2PatchFixBackRubEastEntranceLockup },
 	{  true,   550, "CD/Floppy: fix disappearing desk items",         1, laurabow2SignatureFixDisappearingDeskItems,     laurabow2PatchFixDisappearingDeskItems },
@@ -10190,6 +10412,7 @@ static const SciScriptPatcherEntry laurabow2Signatures[] = {
 	{  true,   448, "CD/Floppy: handle armor hall room events",       1, laurabow2SignatureHandleArmorRoomEvents,        laurabow2PatchHandleArmorRoomEvents },
 	{  true,   600, "Floppy: fix bugs with meat",                     1, laurabow2FloppySignatureFixBugsWithMeat,        laurabow2FloppyPatchFixBugsWithMeat },
 	{  true,   600, "CD: fix bugs with meat",                         1, laurabow2CDSignatureFixBugsWithMeat,            laurabow2CDPatchFixBugsWithMeat },
+	{ false,   650, "CD: fix museum actor loops",                     1, laurabow2CDSignatureFixMuseumActorLoops2,       laurabow2CDPatchFixMuseumActorLoops2 },
 	{  true,   480, "CD: fix act 5 finale music",                     1, laurabow2CDSignatureFixAct5FinaleMusic,         laurabow2CDPatchFixAct5FinaleMusic },
 	{  true,    28, "disable speed test",                             1, sci11SpeedTestSignature,                        sci11SpeedTestPatch },
 	{  true,   120, "CD: disable intro volume change in text mode",   1, laurabow2CDSignatureIntroVolumeChange,          laurabow2CDPatchIntroVolumeChange },
@@ -14569,6 +14792,49 @@ static const uint16 qfg3PatchLaibonHutEntrance2[] = {
 	PATCH_END                           // ne? [ Haven't paid Laibon the bride price ]
 };
 
+// The Laibon's Teller needs updating to be compatible with the above script
+//  patches for the events in his hut. There are two options that should only
+//  appear in Event 6 before paying the bride's price: a "Leopardman" option and
+//  "Marriage". The script enforces this by simply testing that Johari's state
+//  is 2, which is the value for having entered the hut with all of the items.
+//  This assumes that this can only happen in Event 6, but that was one of the
+//  logic problems that we fixed, so this global can now also be 2 in Event 5.
+//
+// We fix this by only showing these Teller options when Johari's state is 2 and
+//  the room is Event 6.
+//
+// Applies to: All versions
+// Responsible method: laibonTell:showDialog
+// Fixes bug: #13748
+static const uint16 qfg3SignatureLaibonTeller[] = {
+	0x88, SIG_UINT16(0x0188),           // lsg 0188 [ johari state ]
+	SIG_MAGICDWORD,
+	0x35, 0x02,                         // ldi 02
+	0x1a,                               // eq?      [ entered with bride price? ]
+	0x36,                               // push
+	0x39, 0xcf,                         // pushi cf [ Marriage cond 49 ]
+	0x88, SIG_UINT16(0x0188),           // lsg 0188 [ johari state ]
+	0x35, 0x02,                         // ldi 02
+	0x1a,                               // eq?      [ entered with bride price? ]
+	0x36,                               // push
+	SIG_END
+};
+
+static const uint16 qfg3PatchLaibonTeller[] = {
+	0x80, PATCH_UINT16(0x0188),         // lag 0188 [ johari state ]
+	0x7a,                               // push2
+	0x1a,                               // eq?      [ entered with bride price? ]
+	0x36,                               // push
+	0x83, 0x0b,                         // lal 0b   [ room event ]
+	0x39, 0x06,                         // pushi 06
+	0x1a,                               // eq?      [ is room event 6? ]
+	0x12,                               // and
+	0x36,                               // push
+	0x39, 0xcf,                         // pushi cf [ Marriage cond 49 ]
+	0x36,                               // push
+	PATCH_END
+};
+
 //          script, description,                                      signature                    patch
 static const SciScriptPatcherEntry qfg3Signatures[] = {
 	{  true,   944, "import dialog continuous calls",                     1, qfg3SignatureImportDialog,           qfg3PatchImportDialog },
@@ -14587,6 +14853,7 @@ static const SciScriptPatcherEntry qfg3Signatures[] = {
 	{  true,   450, "laibon hut events (2/3)",                            1, qfg3SignatureLaibonHutEvents2,       qfg3PatchLaibonHutEvents2 },
 	{  true,   450, "laibon hut events (3/3)",                            1, qfg3SignatureLaibonHutEvents3,       qfg3PatchLaibonHutEvents3 },
 	{  true,   450, "NRS: laibon hut events (3/3)",                       1, qfg3SignatureNrsLaibonHutEvents3,    qfg3PatchNrsLaibonHutEvents3 },
+	{  true,   450, "laibon teller",                                      1, qfg3SignatureLaibonTeller,           qfg3PatchLaibonTeller },
 	{  true,   460, "NRS: floating spears",                               1, qfg3SignatureNrsFloatingSpears,      qfg3PatchNrsFloatingSpears },
 	{  true,   510, "ring rope prize",                                    1, qfg3SignatureRingRopePrize,          qfg3PatchRingRopePrize },
 	{  true,   550, "combat speed throttling script",                     1, qfg3SignatureCombatSpeedThrottling1, qfg3PatchCombatSpeedThrottling1 },
@@ -23940,6 +24207,9 @@ void ScriptPatcher::processScript(uint16 scriptNr, SciSpan<byte> scriptData) {
 				break;
 			case GID_LAURABOW2:
 				if (g_sci->isCD()) {
+					// Enable patches due views having fewer loops in the CD version
+					enablePatch(signatureTable, "CD: fix museum actor loops");
+
 					// Enables Dual mode patches (audio + subtitles at the same time) for Laura Bow 2
 					enablePatch(signatureTable, "CD: audio + text support");
 				}

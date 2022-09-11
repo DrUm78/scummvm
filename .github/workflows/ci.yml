@@ -2,6 +2,8 @@ name: CI
 on: [push, pull_request]
 #  schedule:
 #    - cron: '0 0-23/4 * * *'
+permissions:
+  contents: read
 jobs:
   windows:
     name: Windows
@@ -138,7 +140,7 @@ jobs:
           cache_key: ${{ matrix.platform }}
       - name: Build scummvm
         run: |
-          xcodebuild CC=clang CPLUSPLUS=clang++ LD=clang LDPLUSPLUS=clang++ build -project scummvm.xcodeproj ${{ matrix.buildFlags }}
+          xcodebuild CC=clang CPLUSPLUS=clang++ LD=clang LDPLUSPLUS=clang++ build -project scummvm.xcodeproj ${{ matrix.buildFlags }} | awk '$1 !~ /^(export|cd|clang++)/'
           ls
   ubuntu:
     name: Ubuntu

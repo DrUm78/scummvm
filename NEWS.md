@@ -35,10 +35,21 @@ For a more comprehensive changelog of the latest experimental code, see:
      if one doesn't pick up the model lighthouse lens before Captain Dread brings
      Guybrush back to Scabb Island, at the end of Part II.
    - Added support for original GUI dialogs to COMI.
+   - Improved the decoding of some Western European game strings when they're
+     displayed through ScummVM's interface, such as when pausing a game.
 
  Toon:
    - Made game menus behave like in the original.
 
+ TwinE:
+   - Fixed rendering issue with doors
+   - Fixed invalid music pause in behaviour and inventory menu
+   - Fixed giving kashes instead of hearts as fallback
+   - Fixed item flashing when they drop
+   - Fixed meca penguin angle at spawn
+   - Fixed background redraw when watching cutscenes at the television
+   - Fixed recenter the screen on activating an inventory item
+   - Fixed pressing W to talk to people also makes you jump
 
 #### 2.6.0 "Insane Escapism" (2022-08-01)
 

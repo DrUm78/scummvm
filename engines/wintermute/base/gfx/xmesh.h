@@ -25,11 +25,11 @@
  * Copyright (c) 2003-2013 Jan Nedoma and contributors
  */
 
-#ifndef WINTERMUTE_MESH_X_H
-#define WINTERMUTE_MESH_X_H
+#ifndef WINTERMUTE_XMESH_H
+#define WINTERMUTE_XMESH_H
 
 #include "engines/wintermute/base/base_named_object.h"
-#include "engines/wintermute/base/gfx/x/modelx.h"
+#include "engines/wintermute/base/gfx/xmodel.h"
 #include "engines/wintermute/coll_templ.h"
 
 #include "math/matrix4.h"
@@ -40,7 +40,7 @@ namespace Wintermute {
 class BaseSprite;
 class FrameNode;
 class Material;
-class ModelX;
+class XModel;
 class ShadowVolume;
 class VideoTheoraPlayer;
 class XFileLexer;
@@ -52,15 +52,15 @@ struct SkinWeights {
 	BaseArray<float> _vertexWeights;
 };
 
-class MeshX : public BaseNamedObject {
+class XMesh : public BaseNamedObject {
 public:
-	MeshX(BaseGame *inGame);
-	virtual ~MeshX();
+	XMesh(BaseGame *inGame);
+	virtual ~XMesh();
 
 	virtual bool loadFromX(const Common::String &filename, XFileLexer &lexer, Common::Array<MaterialReference> &materialReferences);
 	bool findBones(FrameNode *rootFrame);
 	virtual bool update(FrameNode *parentFrame);
-	virtual bool render(ModelX *model) = 0;
+	virtual bool render(XModel *model) = 0;
 	virtual bool renderFlatShadowModel() = 0;
 	bool updateShadowVol(ShadowVolume *shadow, Math::Matrix4 &modelMat, const Math::Vector3d &light, float extrusionDepth);
 

@@ -25,50 +25,37 @@
  * Copyright (c) 2003-2013 Jan Nedoma and contributors
  */
 
-#ifndef WINTERMUTE_ACTIVE_ANIMATION_H
-#define WINTERMUTE_ACTIVE_ANIMATION_H
+#ifndef WINTERMUTE_3D_LIGHT_H
+#define WINTERMUTE_3D_LIGHT_H
 
-#include "engines/wintermute/base/base.h"
-#include "engines/wintermute/base/gfx/x/animation_set.h"
+#include "common/memstream.h"
+
+#include "engines/wintermute/base/base_persistence_manager.h"
+#include "engines/wintermute/base/base_scriptable.h"
+
+#include "math/matrix4.h"
+#include "math/vector3d.h"
 
 namespace Wintermute {
 
-class BasePersistenceManager;
-
-class ActiveAnimation : public BaseClass {
+class Light3D : public BaseScriptable {
 public:
-	ActiveAnimation(BaseGame *inGame, ModelX *model);
-	virtual ~ActiveAnimation();
-
-	bool start(AnimationSet *animation, bool looping = false);
-	bool update(int slot = 0, bool prevFrameOnly = false, float lerpValue = 0.0f, bool forceStartFrame = false);
-	bool resetStartTime();
 	bool persist(BasePersistenceManager *persistMgr);
-	bool setLooping(bool looping);
+	bool getViewMatrix(Math::Matrix4 *viewMatrix);
+	Light3D(BaseGame *inGame);
+	virtual ~Light3D();
+	uint32 _diffuseColor;
+	Math::Vector3d _position;
+	Math::Vector3d _target;
+	bool _isSpotlight;
+	bool _active;
+	float _falloff;
 
-	char *getName();
+	float _distance;
+	bool _isAvailable;
 
-	AnimationSet *getAnimSet() {
-		return _animation;
-	};
-
-	bool isLooping() {
-		return _looping;
-	};
-
-	bool isFinished() {
-		return _finished;
-	};
-
-private:
-	ModelX *_model;
-	int32 _currentFrame;
-	uint32 _startTime;
-	bool _looping;
-	bool _finished;
-	uint32 _lastLocalTime;
-
-	AnimationSet *_animation;
+	bool setLight(int index = 0);
+	bool loadFrom3DS(Common::MemoryReadStream &fileStream);
 };
 
 } // namespace Wintermute

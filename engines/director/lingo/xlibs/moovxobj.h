@@ -19,45 +19,48 @@
  *
  */
 
-/*
- * This file is based on WME.
- * http://dead-code.org/redir.php?target=wme
- * Copyright (c) 2003-2013 Jan Nedoma and contributors
- */
+#ifndef DIRECTOR_LINGO_XLIBS_MOOVXOBJ_H
+#define DIRECTOR_LINGO_XLIBS_MOOVXOBJ_H
 
-#ifndef WINTERMUTE_LIGHT3D_H
-#define WINTERMUTE_LIGHT3D_H
+namespace Video {
+class QuickTimeDecoder;
+}
 
-#include "common/memstream.h"
+namespace Director {
 
-#include "engines/wintermute/base/base_persistence_manager.h"
-#include "engines/wintermute/base/base_scriptable.h"
-
-#include "math/matrix4.h"
-#include "math/vector3d.h"
-
-namespace Wintermute {
-
-class Light3D : public BaseScriptable {
+class MoovXObject : public Object<MoovXObject> {
 public:
-	bool persist(BasePersistenceManager *persistMgr);
-	bool getViewMatrix(Math::Matrix4 *viewMatrix);
-	Light3D(BaseGame *inGame);
-	virtual ~Light3D();
-	uint32 _diffuseColor;
-	Math::Vector3d _position;
-	Math::Vector3d _target;
-	bool _isSpotlight;
-	bool _active;
-	float _falloff;
+	MoovXObject(ObjectType objType);
+	~MoovXObject();
 
-	float _distance;
-	bool _isAvailable;
-
-	bool setLight(int index = 0);
-	bool loadFrom3DS(Common::MemoryReadStream &fileStream);
+public:
+	Video::QuickTimeDecoder *_video;
+	int _x;
+	int _y;
 };
 
-} // namespace Wintermute
+namespace MoovXObj {
+
+extern const char *xlibName;
+extern const char *fileNames[];
+
+void open(int type);
+void close(int type);
+
+void m_new(int nargs);
+void m_dispose(int nargs);
+void m_name(int nargs);
+void m_movieInit(int nargs);
+void m_movieKill(int nargs);
+void m_fondler(int nargs);
+void m_playMovie(int nargs);
+void m_pauseMovie(int nargs);
+void m_soundMovie(int nargs);
+void m_stopMovie(int nargs);
+void m_movieDone(int nargs);
+
+} // End of namespace MoovXObj
+
+} // End of namespace Director
 
 #endif

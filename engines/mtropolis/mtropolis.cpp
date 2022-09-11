@@ -54,11 +54,7 @@ MTropolisEngine::MTropolisEngine(OSystem *syst, const MTropolisGameDescription *
 	const Common::FSNode gameDataDir(ConfMan.get("path"));
 	SearchMan.addSubDirectoryMatching(gameDataDir, "Resource");
 
-	if (gameDesc->gameID == GID_OBSIDIAN && _gameDescription->desc.platform == Common::kPlatformWindows) {
-		SearchMan.addSubDirectoryMatching(gameDataDir, "Obsidian");
-		SearchMan.addSubDirectoryMatching(gameDataDir, "Obsidian/RESOURCE");
-		SearchMan.addSubDirectoryMatching(gameDataDir, "RESOURCE");
-	}
+	bootAddSearchPaths(gameDataDir, *gameDesc);
 }
 
 MTropolisEngine::~MTropolisEngine() {
@@ -109,7 +105,14 @@ Common::Error MTropolisEngine::run() {
 	ColorDepthMode preferredColorDepthMode = kColorDepthMode8Bit;
 	ColorDepthMode enhancedColorDepthMode = kColorDepthMode8Bit;
 
-	_runtime.reset(new Runtime(_system, _mixer, this, this));
+	Common::SharedPtr<SubtitleRenderer> subRenderer;
+
+	if (ConfMan.getBool("subtitles"))
+		subRenderer.reset(new SubtitleRenderer(ConfMan.getBool("mtropolis_mod_sound_gameplay_subtitles")));
+
+	_runtime.reset(new Runtime(_system, _mixer, this, this, subRenderer));
+
+	subRenderer.reset();
 
 	Common::SharedPtr<ProjectDescription> projectDesc = bootProject(*_gameDescription);
 
