@@ -34,6 +34,13 @@ class Scaler;
 
 namespace OpenGL {
 
+enum WrapMode {
+	kWrapModeBorder,
+	kWrapModeEdge,
+	kWrapModeRepeat,
+	kWrapModeMirroredRepeat
+};
+
 /**
  * A simple GL texture object abstraction.
  *
@@ -64,6 +71,13 @@ public:
 	bool isLinearFilteringEnabled() const { return (_glFilter == GL_LINEAR); }
 
 	/**
+	 * Enable or disable linear texture filtering.
+	 *
+	 * @param enable true to enable and false to disable.
+	 */
+	void setWrapMode(WrapMode wrapMode);
+
+	/**
 	 * Destroy the OpenGL texture name.
 	 */
 	void destroy();
@@ -86,8 +100,9 @@ public:
 	 *
 	 * @param width  The desired logical width.
 	 * @param height The desired logical height.
+	 * @return Whether the call was successful
 	 */
-	void setSize(uint width, uint height);
+	bool setSize(uint width, uint height);
 
 	/**
 	 * Copy image data to the texture.

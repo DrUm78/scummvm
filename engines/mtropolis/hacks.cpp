@@ -37,6 +37,7 @@ namespace MTropolis {
 
 Hacks::Hacks() {
 	ignoreMismatchedProjectNameInObjectLookups = false;
+	removeQuickTimeEdits = false;
 	midiVolumeScale = 256;
 	minTransitionDuration = 0;
 }
@@ -83,10 +84,10 @@ void ObsidianCorruptedAirTowerTransitionFix::onLoaded(Asset *asset, const Common
 
 class ObsidianInventoryWindscreenHooks : public StructuralHooks {
 public:
-	void onSetPosition(Structural *structural, Common::Point &pt) override;
+	void onSetPosition(Runtime *runtime, Structural *structural, Common::Point &pt) override;
 };
 
-void ObsidianInventoryWindscreenHooks::onSetPosition(Structural *structural, Common::Point &pt) {
+void ObsidianInventoryWindscreenHooks::onSetPosition(Runtime *runtime, Structural *structural, Common::Point &pt) {
 	if (pt.y < 480) {
 		// Set direct to screen so it draws over cinematics
 		static_cast<VisualElement *>(structural)->setDirectToScreen(true);
@@ -98,13 +99,13 @@ void ObsidianInventoryWindscreenHooks::onSetPosition(Structural *structural, Com
 
 class ObsidianSecurityFormWidescreenHooks : public StructuralHooks {
 public:
-	void onSetPosition(Structural *structural, Common::Point &pt) override;
+	void onSetPosition(Runtime *runtime, Structural *structural, Common::Point &pt) override;
 
 private:
 	Common::Array<uint32> _hiddenCards;
 };
 
-void ObsidianSecurityFormWidescreenHooks::onSetPosition(Structural *structural, Common::Point &pt) {
+void ObsidianSecurityFormWidescreenHooks::onSetPosition(Runtime *runtime, Structural *structural, Common::Point &pt) {
 	bool cardVisibility = (pt.y > 480);
 
 	// Originally tried manipulating layer order but that's actually not a good solution because
@@ -137,11 +138,11 @@ void ObsidianSecurityFormWidescreenHooks::onSetPosition(Structural *structural, 
 
 			if (cardVisibility) {
 				if (Common::find(_hiddenCards.begin(), _hiddenCards.end(), card->getStaticGUID()) != _hiddenCards.end())
-					card->setVisible(true);
+					card->setVisible(runtime, true);
 			} else {
 				if (card->isVisible()) {
 					_hiddenCards.push_back(card->getStaticGUID());
-					card->setVisible(false);
+					card->setVisible(runtime, false);
 				}
 			}
 		}
@@ -155,20 +156,20 @@ class ObsidianRSGLogoAnamorphicFilter : public MovieResizeFilter {
 public:
 	ObsidianRSGLogoAnamorphicFilter();
 
-	Common::SharedPtr<Graphics::Surface> scaleFrame(const Graphics::Surface &surface, uint32 timestamp) const override;
+	Common::SharedPtr<Graphics::ManagedSurface> scaleFrame(const Graphics::Surface &surface, uint32 timestamp) const override;
 
 private:
 	template<class TPixel>
-	void anamorphicScaleFrameTyped(const Graphics::Surface &src, Graphics::Surface &dest) const;
+	void anamorphicScaleFrameTyped(const Graphics::Surface &src, Graphics::ManagedSurface &dest) const;
 
 	static double anamorphicCurve(double d);
 	static double inverseAnamorphicCurve(double d);
 
 	template<class TPixel>
-	void halveWidthTyped(const Graphics::Surface &src, Graphics::Surface &dest) const;
+	void halveWidthTyped(const Graphics::ManagedSurface &src, Graphics::ManagedSurface &dest) const;
 
 	template<class TPixel>
-	void halveHeightTyped(const Graphics::Surface &src, Graphics::Surface &dest) const;
+	void halveHeightTyped(const Graphics::ManagedSurface &src, Graphics::ManagedSurface &dest) const;
 
 	Common::Array<uint> _xCoordinates;
 	Common::Array<uint> _yCoordinates;
@@ -243,7 +244,7 @@ ObsidianRSGLogoAnamorphicFilter::ObsidianRSGLogoAnamorphicFilter() {
 }
 
 template<class TPixel>
-void ObsidianRSGLogoAnamorphicFilter::anamorphicScaleFrameTyped(const Graphics::Surface &src, Graphics::Surface &dest) const {
+void ObsidianRSGLogoAnamorphicFilter::anamorphicScaleFrameTyped(const Graphics::Surface &src, Graphics::ManagedSurface &dest) const {
 	const uint width = _xCoordinates.size();
 	const uint height = _yCoordinates.size();
 
@@ -271,7 +272,7 @@ double ObsidianRSGLogoAnamorphicFilter::inverseAnamorphicCurve(double d) {
 }
 
 template<class TPixel>
-void ObsidianRSGLogoAnamorphicFilter::halveWidthTyped(const Graphics::Surface &src, Graphics::Surface &dest) const {
+void ObsidianRSGLogoAnamorphicFilter::halveWidthTyped(const Graphics::ManagedSurface &src, Graphics::ManagedSurface &dest) const {
 	const uint widthHigh = src.w;
 	const uint widthLow = dest.w;
 	const uint height = src.h;
@@ -301,7 +302,7 @@ void ObsidianRSGLogoAnamorphicFilter::halveWidthTyped(const Graphics::Surface &s
 }
 
 template<class TPixel>
-void ObsidianRSGLogoAnamorphicFilter::halveHeightTyped(const Graphics::Surface &src, Graphics::Surface &dest) const {
+void ObsidianRSGLogoAnamorphicFilter::halveHeightTyped(const Graphics::ManagedSurface &src, Graphics::ManagedSurface &dest) const {
 	const uint heightHigh = src.h;
 	const uint heightLow = dest.h;
 	const uint width = src.w;
@@ -331,12 +332,12 @@ void ObsidianRSGLogoAnamorphicFilter::halveHeightTyped(const Graphics::Surface &
 	}
 }
 
-Common::SharedPtr<Graphics::Surface> ObsidianRSGLogoAnamorphicFilter::scaleFrame(const Graphics::Surface &surface, uint32 timestamp) const {
-	Common::SharedPtr<Graphics::Surface> result(new Graphics::Surface());
+Common::SharedPtr<Graphics::ManagedSurface> ObsidianRSGLogoAnamorphicFilter::scaleFrame(const Graphics::Surface &surface, uint32 timestamp) const {
+	Common::SharedPtr<Graphics::ManagedSurface> result(new Graphics::ManagedSurface());
 	result->create(_xCoordinates.size() / 2, _yCoordinates.size() / 2, surface.format);
 
-	Common::SharedPtr<Graphics::Surface> temp1(new Graphics::Surface());
-	Common::SharedPtr<Graphics::Surface> temp2(new Graphics::Surface());
+	Common::SharedPtr<Graphics::ManagedSurface> temp1(new Graphics::ManagedSurface());
+	Common::SharedPtr<Graphics::ManagedSurface> temp2(new Graphics::ManagedSurface());
 
 	temp1->create(_xCoordinates.size(), _yCoordinates.size(), surface.format);
 	temp2->create(_xCoordinates.size() / 2, _yCoordinates.size(), surface.format);
@@ -384,18 +385,26 @@ void ObsidianSaveScreenshotHooks::onSceneTransitionSetup(Runtime *runtime, const
 		Window *mainWindow = runtime->getMainWindow().lock().get();
 		if (mainWindow) {
 			Common::SharedPtr<Graphics::ManagedSurface> mainWindowSurface = mainWindow->getSurface();
-			Common::SharedPtr<Graphics::Surface> screenshot(new Graphics::Surface());
+			Common::SharedPtr<Graphics::ManagedSurface> screenshot(new Graphics::ManagedSurface());
 			screenshot->copyFrom(*mainWindowSurface);
 
 			runtime->setSaveScreenshotOverride(screenshot);
 		}
 	} else {
-		runtime->setSaveScreenshotOverride(Common::SharedPtr<Graphics::Surface>());
+		runtime->setSaveScreenshotOverride(Common::SharedPtr<Graphics::ManagedSurface>());
 	}
 }
 
 void addObsidianQuirks(const MTropolisGameDescription &desc, Hacks &hacks) {
+	// Add screenshot hook to store savegame screenshot prior to going to the menu
 	hacks.addSceneTransitionHooks(Common::SharedPtr<SceneTransitionHooks>(new ObsidianSaveScreenshotHooks()));
+
+	// Strip edit lists from QuickTime movies to work around audio popping problem.
+	// For some reason, some vidbots (like the cube maze entry bot) have edit lists
+	// in the audio track full of half-second edits, but the edit offsets are spaced
+	// 22080 samples apart instead of 22050, which causes it to skip 30 audio samples
+	// every half-second.
+	hacks.removeQuickTimeEdits = true;
 }
 
 void addObsidianBugFixes(const MTropolisGameDescription &desc, Hacks &hacks) {
@@ -781,7 +790,7 @@ void ObsidianAutoSaveVarsState::resyncAllVars(Runtime *runtime) {
 		const VariableModifier *var = findVar(runtime, it->_key);
 		if (var) {
 			DynamicValue varValue;
-			var->varGetValue(nullptr, varValue);
+			var->varGetValue(varValue);
 			assert(varValue.getType() == DynamicValueTypes::kBoolean);
 
 			it->_value = varValue.getBool();
@@ -843,7 +852,7 @@ void ObsidianAutoSaveSceneTransitionHooks::onSceneTransitionEnded(Runtime *runti
 			const VariableModifier *var = _varsState->findVar(runtime, varName);
 			if (var) {
 				DynamicValue varValue;
-				var->varGetValue(nullptr, varValue);
+				var->varGetValue(varValue);
 				assert(varValue.getType() == DynamicValueTypes::kBoolean);
 
 				passedLatchTest = varValue.getBool();
@@ -974,7 +983,7 @@ bool ObsidianSaveLoadMechanism::canSaveNow(Runtime *runtime) {
 		return false;
 
 	DynamicValue bEscValue;
-	static_cast<VariableModifier *>(bEscVar)->varGetValue(nullptr, bEscValue);
+	static_cast<VariableModifier *>(bEscVar)->varGetValue(bEscValue);
 
 	if (bEscValue.getType() != DynamicValueTypes::kBoolean || !bEscValue.getBool())
 		return false;

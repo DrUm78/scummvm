@@ -34,10 +34,11 @@
 
 namespace CryOmni3D {
 
-FontManager::FontManager() : _currentFont(nullptr), _transparentBackground(false),
-	_spaceWidth(0), _charSpacing(0), _lineHeight(30), _foreColor(0), _blockTextRemaining(nullptr),
-	_useSpaceDelimiter(true), _keepASCIIjoined(true), _codepage(Common::kCodePageInvalid),
-	_toUnicode(false) {
+FontManager::FontManager() : _codepage(Common::kCodePageInvalid), _toUnicode(false),
+	_currentFont(nullptr), _currentFontId(uint(-1)), _transparentBackground(false),
+	_spaceWidth(0), _charSpacing(0), _foreColor(0), _currentSurface(nullptr),
+	_lineHeight(30), _justifyText(false), _blockTextRemaining(nullptr),
+	_useSpaceDelimiter(true), _keepASCIIjoined(true) {
 }
 
 FontManager::~FontManager() {
@@ -373,7 +374,7 @@ void FontManager::calculateWordWrap(const Common::U32String &text,
 		uint width = getStrWidth(word);
 		if (width + offset >= lineWidth) {
 			wordWrap = true;
-			// word is too long: just put pointer back at begining
+			// word is too long: just put pointer back at beginning
 			ptr = begin;
 		} else {
 			words.push_back(word);

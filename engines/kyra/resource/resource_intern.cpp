@@ -962,7 +962,7 @@ Common::Archive *InstallerLoader::load(Resource *owner, const Common::String &fi
 	Common::SeekableReadStream *tmpFile = nullptr;
 
 	for (int8 currentFile = 1; currentFile; currentFile++) {
-		sprintf(filenameExt, extension.c_str(), currentFile);
+		Common::sprintf_s(filenameExt, extension.c_str(), currentFile);
 		filenameTemp = filenameBase + Common::String(filenameExt);
 
 		if (!(tmpFile = owner->createReadStream(filenameTemp))) {
@@ -1040,7 +1040,7 @@ Common::Archive *InstallerLoader::load(Resource *owner, const Common::String &fi
 	for (Common::List<InsArchive>::iterator a = archives.begin(); a != archives.end(); ++a) {
 		startFile = true;
 		for (uint32 i = a->firstFile; i != (a->lastFile + 1); i++) {
-			sprintf(filenameExt, extension.c_str(), i);
+			Common::sprintf_s(filenameExt, extension.c_str(), i);
 			filenameTemp = a->filename + Common::String(filenameExt);
 
 			if (!(tmpFile = owner->createReadStream(filenameTemp))) {
@@ -1088,6 +1088,9 @@ Common::Archive *InstallerLoader::load(Resource *owner, const Common::String &fi
 						newEntry.name = entryStr;
 					}
 
+					// The pointer (and the responsibility for the deletion) has been
+					// passed on. Clear the variable as a signal that it can be reused.
+					outbuffer = nullptr;
 					fileList.push_back(newEntry);
 				}
 				pos++;
@@ -1112,7 +1115,7 @@ Common::Archive *InstallerLoader::load(Resource *owner, const Common::String &fi
 						}
 					}
 
-					sprintf(filenameExt, extension.c_str(), i + 1);
+					Common::sprintf_s(filenameExt, extension.c_str(), i + 1);
 					filenameTemp = a->filename + Common::String(filenameExt);
 
 					Common::SeekableReadStream *tmpFile2 = owner->createReadStream(filenameTemp);
@@ -1135,6 +1138,12 @@ Common::Archive *InstallerLoader::load(Resource *owner, const Common::String &fi
 					entryStr = Common::String((const char *)(hdr + 30));
 					pos += (kHeaderSize + filestrlen - m);
 					tmpFile->seek(pos, SEEK_SET);
+
+					if (outbuffer) {
+						delete[] outbuffer;
+						// We can prevent memory leakage, but we should never arrive here, since we still have unprocessed data in the outbuffer.
+						error("InstallerLoader::load(): Unknown decompression failure.");
+					}
 
 					outbuffer = new uint8[outsize];
 					if (!outbuffer)
@@ -1177,6 +1186,9 @@ Common::Archive *InstallerLoader::load(Resource *owner, const Common::String &fi
 							newEntry.name = entryStr;
 						}
 
+						// The pointer (and the responsibility for the deletion) has been
+						// passed on. Clear the variable as a signal that it can be reused.
+						outbuffer = nullptr;
 						fileList.push_back(newEntry);
 					}
 
@@ -1193,6 +1205,12 @@ Common::Archive *InstallerLoader::load(Resource *owner, const Common::String &fi
 			delete tmpFile;
 			tmpFile = nullptr;
 		}
+	}
+
+	if (outbuffer) {
+		delete[] outbuffer;
+		// We can prevent memory leakage, but we should never arrive here, since we still have unprocessed data in the outbuffer.
+		error("InstallerLoader::load(): Unknown decompression failure.");
 	}
 
 	archives.clear();

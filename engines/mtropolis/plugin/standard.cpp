@@ -1588,9 +1588,21 @@ void CursorModifier::disable(Runtime *runtime) {
 }
 
 bool CursorModifier::load(const PlugInModifierLoaderContext &context, const Data::Standard::CursorModifier &data) {
-	if (!_applyWhen.load(data.applyWhen) || !_removeWhen.load(data.removeWhen))
+	if (data.applyWhen.type != Data::PlugInTypeTaggedValue::kEvent || data.cursorIDAsLabel.type != Data::PlugInTypeTaggedValue::kLabel)
 		return false;
-	_cursorID = data.cursorID;
+
+	if (!_applyWhen.load(data.applyWhen.value.asEvent))
+		return false;
+
+	if (data.haveRemoveWhen) {
+		if (!_removeWhen.load(data.removeWhen.value.asEvent))
+			return false;
+	}
+
+	if (data.cursorIDAsLabel.type != Data::PlugInTypeTaggedValue::kLabel)
+		return false;
+
+	_cursorID = data.cursorIDAsLabel.value.asLabel.labelID;
 
 	return true;
 }
@@ -1867,7 +1879,7 @@ VThreadState MediaCueMessengerModifier::consumeMessage(Runtime *runtime, const C
 					}
 
 					DynamicValue value;
-					static_cast<VariableModifier *>(modifier)->varGetValue(nullptr, value);
+					static_cast<VariableModifier *>(modifier)->varGetValue(value);
 
 					switch (value.getType()) {
 					case DynamicValueTypes::kInteger:
@@ -1951,7 +1963,7 @@ bool ObjectReferenceVariableModifier::load(const PlugInModifierLoaderContext &co
 		return false;
 
 	if (data.objectPath.type == Data::PlugInTypeTaggedValue::kString)
-		_objectPath = data.objectPath.str;
+		_objectPath = data.objectPath.value.asString;
 	else if (data.objectPath.type != Data::PlugInTypeTaggedValue::kNull)
 		return false;
 
@@ -2015,7 +2027,7 @@ bool ObjectReferenceVariableModifier::varSetValue(MiniscriptThread *thread, cons
 	}
 }
 
-void ObjectReferenceVariableModifier::varGetValue(MiniscriptThread *thread, DynamicValue &dest) const {
+void ObjectReferenceVariableModifier::varGetValue(DynamicValue &dest) const {
 	dest.setObject(this->getSelfReference());
 }
 
@@ -2747,7 +2759,7 @@ bool ListVariableModifier::load(const PlugInModifierLoaderContext &context, cons
 
 	for (size_t i = 0; i < data.numValues; i++) {
 		DynamicValue dynValue;
-		if (!dynValue.load(data.values[i]))
+		if (!dynValue.loadConstant(data.values[i]))
 			return false;
 
 		if (dynValue.getType() != expectedType) {
@@ -2782,7 +2794,7 @@ bool ListVariableModifier::varSetValue(MiniscriptThread *thread, const DynamicVa
 	return true;
 }
 
-void ListVariableModifier::varGetValue(MiniscriptThread *thread, DynamicValue &dest) const {
+void ListVariableModifier::varGetValue(DynamicValue &dest) const {
 	dest.setList(_list);
 }
 
@@ -2863,12 +2875,6 @@ void ListVariableModifier::debugInspect(IDebugInspectionReport *report) const {
 			break;
 		case DynamicValueTypes::kEvent:
 			report->declareLoose(Common::String::format("[%i] = Event?", cardinal));
-			break;
-		case DynamicValueTypes::kVariableReference:
-			report->declareLoose(Common::String::format("[%i] = VarRef?", cardinal));
-			break;
-		case DynamicValueTypes::kIncomingData:
-			report->declareLoose(Common::String::format("[%i] = IncomingData??", cardinal));
 			break;
 		case DynamicValueTypes::kString:
 			report->declareLoose(Common::String::format("[%i] = ", cardinal) + _list->getString()[i]);

@@ -408,13 +408,13 @@ bool Console::cmdDumpMap(int argc, const char **argv) {
 		debugPrintf("Usage: %s <Map Size Multiplier>\n", argv[0]);
 	else {
 		gPixelMap drawMap;
-		drawMap.size = _vm->_tileDrawMap.size * atoi(argv[1]);
-		drawMap.data = new uint8[drawMap.bytes()]();
+		drawMap._size = _vm->_tileDrawMap._size * atoi(argv[1]);
+		drawMap._data = new uint8[drawMap.bytes()]();
 		drawMetaTiles(drawMap);
 
 		Graphics::Surface sur;
-		sur.create(drawMap.size.x, drawMap.size.y, Graphics::PixelFormat::createFormatCLUT8());
-		sur.setPixels(drawMap.data);
+		sur.create(drawMap._size.x, drawMap._size.y, Graphics::PixelFormat::createFormatCLUT8());
+		sur.setPixels(drawMap._data);
 
 		Common::String pngFile = Common::String::format("%s-mapdump.png", _vm->getMetaEngine()->getName());
 		Common::DumpFile dump;
@@ -427,7 +427,7 @@ bool Console::cmdDumpMap(int argc, const char **argv) {
 
 		dump.close();
 
-		delete[] drawMap.data;
+		delete[] drawMap._data;
 	}
 
 	return true;
@@ -463,9 +463,9 @@ bool Console::cmdInvisibility(int argc, const char **argv) {
 		for (ObjectID id = ActorBaseID; id < ActorBaseID + kPlayerActors; ++id) {
 			Actor *p = (Actor *)GameObject::objectAddress(id);
 			if (inv)
-				p->setEffect(actorInvisible, true);
+				p->setEffect(kActorInvisible, true);
 			else
-				p->setEffect(actorInvisible, false);
+				p->setEffect(kActorInvisible, false);
 		}
 	}
 

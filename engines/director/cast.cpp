@@ -93,9 +93,6 @@ Cast::~Cast() {
 
 	if (_castArchive) {
 		_castArchive->close();
-
-		g_director->_openResFiles.erase(_castArchive->getPathName());
-
 		delete _castArchive;
 		_castArchive = nullptr;
 	}
@@ -207,6 +204,8 @@ CastMember *Cast::setCastMember(CastMemberID castId, CastMember *cast) {
 
 bool Cast::eraseCastMember(CastMemberID castId) {
 	if (_loadedCast->contains(castId.member)) {
+		CastMember *member = _loadedCast->getVal(castId.member);
+		delete member;
 		_loadedCast->erase(castId.member);
 		return true;
 	}
@@ -222,9 +221,6 @@ void Cast::setArchive(Archive *archive) {
 	} else {
 		_macName = archive->getFileName();
 	}
-
-	// Register the resfile so that Cursor::readFromResource can find it
-	g_director->_openResFiles.setVal(archive->getPathName(), archive);
 }
 
 void Cast::loadArchive() {
@@ -233,14 +229,12 @@ void Cast::loadArchive() {
 }
 
 bool Cast::loadConfig() {
-	if (!_castArchive->hasResource(MKTAG('V', 'W', 'C', 'F'), -1)) {
+	Common::SeekableReadStreamEndian *stream = nullptr;
+	stream = _castArchive->getMovieResourceIfPresent(MKTAG('V', 'W', 'C', 'F'));
+	if (!stream) {
 		warning("Cast::loadConfig(): Wrong format. VWCF resource missing");
 		return false;
 	}
-
-	Common::SeekableReadStreamEndian *stream = nullptr;
-
-	stream = _castArchive->getMovieResourceIfPresent(MKTAG('V', 'W', 'C', 'F'));
 
 	debugC(1, kDebugLoading, "****** Loading Config VWCF");
 
@@ -424,6 +418,8 @@ bool Cast::loadConfig() {
 		if (check != checksum)
 			warning("BUILDBOT: The checksum for this VWCF resource is incorrect. Got %04x, but expected %04x", check, checksum);
 
+		/* int16 field30 = */ stream->readSint16();
+
 		_defaultPalette = stream->readSint16();
 		// In this header value, the first builtin palette starts at 0 and
 		// continues down into negative numbers.
@@ -478,7 +474,7 @@ void Cast::loadCast() {
 
 	// Font Directory
 	if (_castArchive->hasResource(MKTAG('F', 'O', 'N', 'D'), -1)) {
-		debug("Cast::loadArchive(): Movie has fonts. Loading....");
+		debug("Cast::loadCast(): Movie has fonts. Loading....");
 
 		_vm->_wm->_fontMan->loadFonts(_castArchive->getPathName());
 	}
@@ -615,14 +611,16 @@ void Cast::loadStxtData(int key, TextCastMember *member) {
 	else
 		stxtid = key;
 
-	if (_loadedStxts->getVal(stxtid)) {
+	if (_loadedStxts->contains(stxtid)) {
 		const Stxt *stxt = _loadedStxts->getVal(stxtid);
 		member->importStxt(stxt);
 		member->_size = stxt->_size;
+	} else {
+		warning("Cast::loadStxtData: stxtid %i isn't loaded", stxtid);
 	}
 }
 
-void Cast::loadPaletteData(PaletteCastMember *member, Common::HashMap<int, PaletteV4>::iterator p) {
+void Cast::loadPaletteData(PaletteCastMember *member, Common::HashMap<int, PaletteV4>::iterator &p) {
 	// TODO: Verify how palettes work in >D4 versions
 	if (_version >= kFileVer400 && _version < kFileVer500 && member->_children.size() == 1) {
 		member->_palette = g_director->getPalette(member->_children[0].index);
@@ -646,6 +644,7 @@ void Cast::loadFilmLoopData(FilmLoopCastMember *member) {
 				Common::SeekableReadStreamEndian *loop = _castArchive->getResource(tag, filmLoopId);
 				debugC(2, kDebugLoading, "****** Loading '%s' id: %d, %d bytes", tag2str(tag), filmLoopId, (int)loop->size());
 				member->loadFilmLoopData(*loop);
+				delete loop;
 			} else {
 				warning("Cast::loadFilmLoopData(): Film loop not found");
 			}
@@ -722,10 +721,12 @@ void Cast::loadBitmapData(int key, BitmapCastMember *bitmapCast) {
 		break;
 	}
 
-	if (!img)
+	if (!img || !img->loadStream(*pic)) {
+		warning("Cast::loadBitmapData(): Unable to load id: %d", imgId);
+		delete pic;
+		delete img;
 		return;
-
-	img->loadStream(*pic);
+	}
 
 	bitmapCast->_img = img;
 	const Graphics::Surface *surf = img->getSurface();
@@ -960,11 +961,11 @@ void Cast::loadExternalSound(Common::SeekableReadStreamEndian &stream) {
 
 	Common::String resPath = g_director->getCurrentPath() + str;
 
-	if (!g_director->_openResFiles.contains(resPath)) {
+	if (!g_director->_allOpenResFiles.contains(resPath)) {
 		MacArchive *resFile = new MacArchive();
 
 		if (resFile->openFile(resPath)) {
-			g_director->_openResFiles.setVal(resPath, resFile);
+			g_director->_allOpenResFiles.setVal(resPath, resFile);
 		} else {
 			delete resFile;
 		}
@@ -1060,6 +1061,12 @@ void Cast::loadCastData(Common::SeekableReadStreamEndian &stream, uint16 id, Res
 	stream.read(data, castSizeToRead);
 
 	Common::MemoryReadStreamEndian castStream(data, castSizeToRead, stream.isBE());
+
+	if (_loadedCast->contains(id)) {
+		warning("Cast::loadCastData(): Multiple cast members with ID %d, overwriting", id);
+		delete _loadedCast->getVal(id);
+		_loadedCast->erase(id);
+	}
 
 	switch (castType) {
 	case kCastBitmap:
@@ -1229,6 +1236,10 @@ void Cast::loadLingoContext(Common::SeekableReadStreamEndian &stream) {
 					error("Cast::loadLingoContext: Script already defined for type %s, id %d", scriptType2str(script->_scriptType), script->_id);
 				}
 				_lingoArchive->scriptContexts[script->_scriptType][script->_id] = script;
+			} else {
+				// Keep track of scripts that are not in scriptContexts
+				// Those scripts need to be cleaned up on ~LingoArchive
+				script->setOnlyInLctxContexts();
 			}
 		}
 	} else {
@@ -1492,6 +1503,26 @@ void Cast::loadVWTL(Common::SeekableReadStreamEndian &stream) {
 				r.left, r.top, r.right, r.bottom);
 	}
 
+}
+
+Common::String Cast::formatCastSummary(int castId = -1) {
+	Common::String result;
+	Common::Array<int> castIds;
+	for (auto it = _loadedCast->begin(); it != _loadedCast->end(); ++it) {
+		castIds.push_back(it->_key);
+	}
+	Common::sort(castIds.begin(), castIds.end());
+	for (auto it = castIds.begin(); it != castIds.end(); ++it) {
+		if (castId > -1 &&  *it != castId)
+			continue;
+		CastMember *castMember = getCastMember(*it);
+		CastMemberInfo *castMemberInfo = getCastMemberInfo(*it);
+		result += Common::String::format("%d: type=%s, name=\"%s\"\n",
+			*it, castTypeToString(castMember->_type).c_str(),
+			castMemberInfo ? castMemberInfo->name.c_str() : ""
+		);
+	}
+	return result;
 }
 
 } // End of namespace Director

@@ -711,7 +711,11 @@ void TextMgr::promptKeyPress(uint16 newKey) {
 	switch (_vm->getLanguage()) {
 	case Common::RU_RUS:
 	case Common::HE_ISR:
-		if (newKey >= 0x20)
+		if ((newKey >= 0x20) && (newKey <= 0xff))
+			acceptableInput = true;
+		break;
+	case Common::FR_FRA:
+		if ((newKey >= 0x20) && (newKey != 0x5e) && (newKey <= 0xff))
 			acceptableInput = true;
 		break;
 	default:
@@ -1025,7 +1029,11 @@ void TextMgr::stringKeyPress(uint16 newKey) {
 			switch (_vm->getLanguage()) {
 			case Common::RU_RUS:
 			case Common::HE_ISR:
-				if (newKey >= 0x20)
+				if ((newKey >= 0x20) && (newKey <= 0xff))
+					acceptableInput = true;
+				break;
+			case Common::FR_FRA:
+				if ((newKey >= 0x20) && (newKey != 0x5e) && (newKey <= 0xff))
 					acceptableInput = true;
 				break;
 			default:
@@ -1209,7 +1217,7 @@ char *TextMgr::stringPrintf(const char *originalText) {
 				i = strtoul(originalText, nullptr, 10);
 				while (*originalText >= '0' && *originalText <= '9')
 					originalText++;
-				sprintf(z, "%015i", _vm->getVar(i));
+				Common::sprintf_s(z, "%015i", _vm->getVar(i));
 
 				i = 99;
 				if (*originalText == '|') {

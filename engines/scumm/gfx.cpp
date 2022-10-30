@@ -420,7 +420,7 @@ void ScummEngine::initVirtScreen(VirtScreenNumber slot, int top, int width, int 
 	vs->pitch = width * vs->format.bytesPerPixel;
 
 	if (_game.version >= 7) {
-		// Increase the pitch by one; needed to accomodate the extra screen
+		// Increase the pitch by one; needed to accommodate the extra screen
 		// strip which we use to implement smooth scrolling. See Gdi::init().
 		vs->pitch += 8;
 	}
@@ -1011,7 +1011,7 @@ void ScummEngine::initBGBuffers(int height) {
 	if (_game.version >= 7) {
 		// Resize main virtual screen in V7 games. This is necessary
 		// because in V7, rooms may be higher than one screen, so we have
-		// to accomodate for that.
+		// to accommodate for that.
 		initVirtScreen(kMainVirtScreen, _virtscr[kMainVirtScreen].topline, _screenWidth, height, true, true);
 	}
 
@@ -2225,6 +2225,31 @@ bool Gdi::drawStrip(byte *dstPtr, VirtScreen *vs, int x, int y, const int width,
 			_roomPalette[11] = 86;
 		if (_roomPalette[13] == 13 && _roomPalette[80] == 80)
 			_roomPalette[13] = 80;
+	}
+
+	// WORKAROUND: In the CD version of MI1, the sign about how the dogs
+	// are only sleeping has a dark blue background instead of white. This
+	// makes the sign harder to read, so temporarily remap the color while
+	// drawing it. The text is also slightly different, but that is taken
+	// care of elsewhere.
+	//
+	// The SEGA CD version uses the old colors already, and the FM Towns
+	// version makes the text more readable by giving it a black outline.
+
+	else if (_vm->_game.id == GID_MONKEY &&
+			_vm->_game.platform != Common::kPlatformSegaCD &&
+			_vm->_game.platform != Common::kPlatformFMTowns &&
+			_vm->_currentRoom == 36 &&
+			vs->number == kMainVirtScreen &&
+			y == 8 && x >= 7 && x <= 30 && height == 88 &&
+			strcmp(_vm->_game.variant, "SE Talkie") != 0 &&
+			_vm->_enableEnhancements) {
+		_roomPalette[47] = 15;
+
+		byte result = decompressBitmap(dstPtr, vs->pitch, smap_ptr + offset, height);
+
+		_roomPalette[47] = 47;
+		return result;
 	}
 
 	return decompressBitmap(dstPtr, vs->pitch, smap_ptr + offset, height);

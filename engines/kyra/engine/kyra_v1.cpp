@@ -68,6 +68,10 @@ KyraEngine_v1::KyraEngine_v1(OSystem *system, const GameFlags &flags)
 	_mouseX = _mouseY = 0;
 	_transOffsY = 0;
 	_asciiCodeEvents = _kbEventSkip = false;
+
+	_configMusic = 0;
+	_configSounds = false;
+	_configVoice = _configWalkspeed = 0;
 }
 
 void KyraEngine_v1::pauseEngineIntern(bool pause) {
@@ -260,7 +264,7 @@ int KyraEngine_v1::checkInput(Button *buttonList, bool mainLoop, int eventFlag) 
 					breakLoop = true;
 				} else {
 					char savegameName[14];
-					sprintf(savegameName, "Quicksave %d", event.kbd.keycode - Common::KEYCODE_0);
+					Common::sprintf_s(savegameName, "Quicksave %d", event.kbd.keycode - Common::KEYCODE_0);
 					saveGameStateIntern(saveLoadSlot, savegameName, nullptr);
 				}
 			} else if (event.kbd.hasFlags(Common::KBD_CTRL)) {

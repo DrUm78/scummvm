@@ -64,6 +64,51 @@ void GLTexture::enableLinearFiltering(bool enable) {
 	GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, _glFilter));
 }
 
+void GLTexture::setWrapMode(WrapMode wrapMode) {
+	GLuint glwrapMode;
+
+	switch(wrapMode) {
+		case kWrapModeBorder:
+#if !USE_FORCED_GLES && !USE_FORCED_GLES2
+			if (OpenGLContext.textureBorderClampSupported) {
+				glwrapMode = GL_CLAMP_TO_BORDER;
+				break;
+			}
+#endif
+		// fall through
+		case kWrapModeEdge:
+			if (OpenGLContext.textureEdgeClampSupported) {
+				glwrapMode = GL_CLAMP_TO_EDGE;
+				break;
+			} else {
+#if !USE_FORCED_GLES && !USE_FORCED_GLES2
+				// Fallback on clamp
+				glwrapMode = GL_CLAMP;
+#else
+				// This fallback should never happen in real life (GLES/GLES2 have border/edge clamp)
+				glwrapMode = GL_REPEAT;
+#endif
+				break;
+			}
+		case kWrapModeMirroredRepeat:
+#if !USE_FORCED_GLES
+			if (OpenGLContext.textureMirrorRepeatSupported) {
+				glwrapMode = GL_MIRRORED_REPEAT;
+				break;
+			}
+#endif
+		// fall through
+		case kWrapModeRepeat:
+			glwrapMode = GL_REPEAT;
+	}
+
+
+	bind();
+
+	GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glwrapMode));
+	GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glwrapMode));
+}
+
 void GLTexture::destroy() {
 	GL_CALL(glDeleteTextures(1, &_glTexture));
 	_glTexture = 0;
@@ -103,9 +148,12 @@ void GLTexture::bind() const {
 	GL_CALL(glBindTexture(GL_TEXTURE_2D, _glTexture));
 }
 
-void GLTexture::setSize(uint width, uint height) {
+bool GLTexture::setSize(uint width, uint height) {
 	const uint oldWidth  = _width;
 	const uint oldHeight = _height;
+
+	_logicalWidth  = width;
+	_logicalHeight = height;
 
 	if (!OpenGLContext.NPOTSupported) {
 		_width  = Common::nextHigher2(width);
@@ -114,9 +162,6 @@ void GLTexture::setSize(uint width, uint height) {
 		_width  = width;
 		_height = height;
 	}
-
-	_logicalWidth  = width;
-	_logicalHeight = height;
 
 	// If a size is specified, allocate memory for it.
 	if (width != 0 && height != 0) {
@@ -138,10 +183,15 @@ void GLTexture::setSize(uint width, uint height) {
 		// Allocate storage for OpenGL texture if necessary.
 		if (oldWidth != _width || oldHeight != _height) {
 			bind();
-			GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, _glIntFormat, _width,
-			                     _height, 0, _glFormat, _glType, nullptr));
+			bool error;
+			GL_CALL_CHECK(error, glTexImage2D(GL_TEXTURE_2D, 0, _glIntFormat, _width, _height,
+			             0, _glFormat, _glType, nullptr));
+			if (error) {
+				return false;
+			}
 		}
 	}
+	return true;
 }
 
 void GLTexture::updateArea(const Common::Rect &area, const Graphics::Surface &src) {

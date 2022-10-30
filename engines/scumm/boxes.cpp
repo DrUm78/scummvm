@@ -165,16 +165,18 @@ static Common::Point closestPtOnLine(const Common::Point &lineStart, const Commo
 byte ScummEngine::getMaskFromBox(int box) {
 	// WORKAROUND for bug #791 and #897. This appears to have been a
 	// long standing bug in the original engine?
-	if (_game.version <= 3 && box == 255)
+	if (_game.version <= 3 && box == kOldInvalidBox)
 		return 1;
 
 	Box *ptr = getBoxBaseAddr(box);
 	if (!ptr)
 		return 0;
 
-	// WORKAROUND for bug #1315: This is a bug in the data files, as it also
-	// occurs with the original engine. We work around it here anyway.
-	if (_game.id == GID_INDY4 && _currentRoom == 225 && _roomResource == 94 && box == 8)
+	// WORKAROUND for bug #1315: the wall sprite is drawn over Indy when he
+	// stands at a specific place near Nur-Ab-Sal's abode. This is a bug in
+	// the data files, as it also occurs with the original engine. We work
+	// around it here anyway.
+	if (_game.id == GID_INDY4 && _currentRoom == 225 && _roomResource == 94 && box == 8 && _enableEnhancements)
 		return 0;
 
 	if (_game.version == 8)
@@ -327,7 +329,7 @@ int ScummEngine::getBoxScale(int box) {
  * and in fact the lack of it caused various bugs in the past.
  *
  * Hence, we decided to switch all games to use the more powerful scale slots.
- * To accomodate old savegames, we attempt here to convert rtScaleTable
+ * To accommodate old savegames, we attempt here to convert rtScaleTable
  * resources to scale slots.
  */
 void ScummEngine::convertScaleTableToScaleSlot(int slot) {
@@ -451,7 +453,7 @@ byte ScummEngine::getNumBoxes() {
 
 Box *ScummEngine::getBoxBaseAddr(int box) {
 	byte *ptr = getResourceAddress(rtMatrix, 2);
-	if (!ptr || box == 255)
+	if (!ptr || box == kOldInvalidBox)
 		return nullptr;
 
 	// WORKAROUND: The NES version of Maniac Mansion attempts to set flags for boxes 2-4
@@ -541,13 +543,13 @@ bool ScummEngine::checkXYInBoxBounds(int boxnum, int x, int y) {
 	// Corner case: If the box is a simple line segment, we consider the
 	// point to be contained "in" (or rather, lying on) the line if it
 	// is very close to its projection to the line segment.
-	// Update: It can cause bugs like #13366 if used for games where this
-	// code isn't actually present in the original interpreter. I have
+	// Update: It can cause bugs like #1194/#13366 if used for games where
+	// this code isn't actually present in the original interpreter. I have
 	// checked disasm for LOOM FM-TOWNS and DOS EGA, ZAK FM-TOWNS, INDY3
 	// FM-TOWNS and DOS VGA and also LOOM DOS VGA (v4). MI2 does have the
 	// these lines, so that's probably the origin of our code. So it seems
 	// safe to assume that it does not belong in any game before SCUMM5.
-	// I have also checked ZAK DOS to verify that the earliy games don't
+	// I have also checked ZAK DOS to verify that the early games don't
 	// even have/use the whole function checkXYInBoxBounds(), so we're
 	// doing that correctly.
 	if (_game.version > 4) {

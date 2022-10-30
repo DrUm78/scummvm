@@ -9,9 +9,15 @@ Umfangreichere Informationen über die Änderungen des aktuellen Codes findest D
      hinzugefügt.
    - Unterstützung für die TI99/4A-Versionen der GLK Scott Adams-Spiele 1-12 hinzugefügt.
    - Unterstützung für Obsidian hinzugefügt.
+   - Unterstützung für Added support for Pink Panther: Passport to Peril hinzugefügt.
+   - Unterstützung für Pink Panther: Hokus Pokus Pink hinzugefügt.
 
  Allgemein:
    - Anzahl an falsch-positiven Einträgen reduziert, wenn das Gerät nach Spielen durchsucht wird.
+   - Code der Roland MT-32-Emulation auf Munt mt32emu 2.7.0 aktualisiert.
+
+ AGI:
+   - Unterstützung der französischen Übersetzungen verbessert.
 
  AGOS:
    - Option hinzugefügt, mit der die Ausblende-Effekte bei einem Raum-Wechsel in Simon 1 und 2
@@ -20,6 +26,9 @@ Umfangreichere Informationen über die Änderungen des aktuellen Codes findest D
  Kyra:
    - Unterstützung für die koreanische Version von Legend of Kyrandia 1 hinzugefügt.
    - Unterstützung für die hebräische Version von Legend of Kyrandia 3 hinzugefügt.
+
+ Queen:
+   - Eine zusätzliche Option erlaubt die Verwendung einer verbesserten Schriftart für die hebräische Version.
 
  SCUMM:
    - Unterstützung von CGA-, CGA Composite-, CGA schwarz/weiß- und Herkules-Grafikmodi
@@ -35,12 +44,29 @@ Umfangreichere Informationen über die Änderungen des aktuellen Codes findest D
      Diese ist immer dann aufgetreten, wenn der Spieler am Ende von Part II
      das Modell des Leuchtturms nicht aufhebt, bevor Captain Dread Guybrush
      zurück zu Scabb Island bringt.
-   - Unterstützung für die originale Benutzeroberfläche von COMI hinzugefügt.
+   - Einige Fehler in den Originalversionen der Spiele sowie Logik- und Continuity-Fehler
+     korrigiert (nur, wenn die Option "Verwende spiel-spezifische Verbesserungen" aktiv ist).
+   - Unterstützung für die originale Benutzeroberfläche der LucasArts-Spiele in Version v4-v8 hinzugefügt.
    - Verbesserte Dekodierung einiger westeuropäischen Zeichenketten, wenn diese über
      die ScummVM-Oberfläche dargestellt werden - beispielsweise, wenn ein Spiel pausiert wird.
+   - Der Kopf des Navigators zeigte in der ursprünglichen Version von Monkey Island 1 (ohne
+     die verbesserte Verben-Oberfläche) nicht in alle möglichen Richtungen.
+   - Leicht abweichende Text-Positionierung in den v4-Spielen sowie in Loom v3 korrigiert.
+   - Spiele-Credits am Ende von Sam & Max können jetzt - so wie im Original -
+     mit dem Fadenkreuz-Mauszeiger abgeschossen werden.
+   - Probleme mit der Lippen-Synchronisation in der finalen Szene von Freddi Fish 4 korrigiert.
+   - Die Lade-Animation des Mauszeigers in The Dig und COMI wurde nicht immer dargestellt.
+   - Genauigkeit einiger Audio-Treiber verbessert. Die Fehler haben sich merklich auf die
+     Änderung der Tonhöhe in der Intro-Musik von DOTT ausgewirkt.
+   - In COMI liest Guybrush die Uhr von Puerto Pollo nur in der englischen, italienischen
+     und der (von Fans erstellten) russischen Version des Spiels, was das Verhalten des
+     originalen Interpreters widerspiegelt (vermutlich aufgrund der schlechten Resultate
+     in den anderen Sprachen).
+   - Verbesserte Unterstützung der hebräischen Versionen der Spiele von Humongous Entertainment.
+   - Unterstützung für Roland MT-32 in Sam & Max korrigiert.
 
  Toon:
-   - Die Spiel-Menüs verhalten sich nun wie das Original.
+   - Die Spiel-Menüs verhalten sich nun wie im Original.
 
  TwinE:
    - Darstellungsfehler bei Türen behoben.
@@ -52,8 +78,58 @@ Umfangreichere Informationen über die Änderungen des aktuellen Codes findest D
    - Der Bildschirm wird nun nicht mehr zentriert, wenn ein Inventar-Item aktiviert wird.
    - Wenn man W drückt, um mit Leuten zu sprechen, springt man nicht mehr automatisch.
 
+#### 2.6.1 "Incremental Escapism" (31.10.2022)
 
-#### 2.6.0 "Insane Escapism" (2022-08-01)
+ Allgemein:
+   - Verschiedene Verbesserungen für die icon-basierte Ansicht des Launchers vorgenommen.
+   - Mögliche Grafikfehler bei der Nutzung des OpenGL-Renderers behoben.
+
+ AGS:
+   - Absturz von AGDIs KQ1-Remake (und einigen anderen Spielen) auf Big-Endian-Systemen behoben.
+
+ AGOS:
+   - Mehrere Fehler korrigiert, die zu Abstürzen in den Demo-Versionen von The Feeble Files
+     und Personal Nightmare sowie in der Vollversion von Waxworks geführt haben.
+   - Absturz während des Dialogs mit den Piraten in Simon the Sorcerer 2 behoben.
+
+ Asylum:
+   - Menü zur Tastatur-Konfiguration repariert.
+   - Unterstützung für Tastenkürzel im Dialog-Bildschirm hinzugefügt.
+   - Das Spielmenü kann nun über ein Tastenkürzel aufgerufen werden.
+   - Fehler behoben, der dazu führt, dass die Steuerung zurückgesetzt wird, wenn das Hive-Puzzle verlassen wird.
+   - Animationsfehler bei der Darstellung der schwebenden Körper in Kapitel 4 korrigiert.
+
+ Ultima:
+   - Darstellungsfehler behoben, der auftritt, wenn die Minikarte vom Spiel-Bildschirm wegbewegt wird.
+   - Möglicher Absturz bei der Nutzung der Autosave-Funktion behoben.
+
+ SCI:
+   - Mehrere Fehler und Skript-Probleme in KQ4, KQ5, LB2, LONGBOW, PQ1, PQ3, QFG4 und SQ5 behoben.
+   - Zahlreiche Verbesserungen an verschiedenen Stellen des Engine-Codes.
+
+ SCUMM:
+   - Mögliche Abstürze in Spielen, die iMUSE verwenden, korrigiert.
+   - Fehlende .SOU- und .BUN-Dateien führen nun nicht mehr zu einem Absturz.
+   - Abstürze in v7- und v8-Spielen auf Systemen mit striktem Aligment behoben.
+   - Fehlerhafte Lippen-Synchronisation in COMI auf Big-Endian-Systemen (wie der PS3 oder Wii) korrigiert.
+ 
+ Tinsel:
+   - Fehler behoben, der dazu führt, dass in Discworld einige Gegenstände nicht im Inventar abgelegt werden konnten.
+
+ Toltecs:
+   - Abstürze auf einigen Systemen mit striktem Aligment behoben.
+
+ Toon:
+   - Fehler behoben, der dazu führt, dass Musik und Soundeffekte standardmäßig stummgeschaltet werden,
+     wenn das Spiel Toonstruck zu ScummVM hinzugefügt wird.
+
+ Android-Portierung:
+   - Die Maus-Koordinaten werden nun korrekt zwischen den Bildschirm-Koordinaten und den virtuellen Koordinaten konvertiert.
+
+ Windows-Portierung:
+  - Fehler korrigiert, der dazu führt, dass das Löschen des Icon-Caches einen zusätzlichen ScummVM-Ordner im APPDATA-Verzeichnis anlegt.
+
+#### 2.6.0 "Insane Escapism" (01.08.2022)
 
  Neue Spiele:
    - Unterstützung für Sanitarium hinzugefügt.

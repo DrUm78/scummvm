@@ -752,14 +752,14 @@ void Sound::startTalkSound(uint32 offset, uint32 b, int mode, Audio::SoundHandle
 		if (!file)
 			error("startTalkSound: Out of memory");
 
-		sprintf(filename, "audio/%s.%u/%u.voc", roomname, offset, b);
+		Common::sprintf_s(filename, "audio/%s.%u/%u.voc", roomname, offset, b);
 		if (!_vm->openFile(*file, filename)) {
-			sprintf(filename, "audio/%s_%u/%u.voc", roomname, offset, b);
+			Common::sprintf_s(filename, "audio/%s_%u/%u.voc", roomname, offset, b);
 			_vm->openFile(*file, filename);
 		}
 
 		if (!file->isOpen()) {
-			sprintf(filename, "%u.%u.voc", offset, b);
+			Common::sprintf_s(filename, "%u.%u.voc", offset, b);
 			_vm->openFile(*file, filename);
 		}
 
@@ -1567,9 +1567,11 @@ void Sound::restoreAfterLoad() {
 }
 
 bool Sound::isAudioDisabled() {
+#ifdef ENABLE_SCUMM_7_8
 	if (_vm->_game.version > 6) {
 		return _vm->_imuseDigital->isEngineDisabled();
 	}
+#endif
 
 	return false;
 }
@@ -2449,6 +2451,7 @@ int ScummEngine::readSoundResourceSmallHeader(ResId idx) {
 				_fileHandle->read(_res->createResource(rtSound, idx, wa_size + 6), wa_size + 6);
 			}
 		}
+		return 1;
 	} else if (ad_offs != 0) {
 		// AD resources have a header, instrument definitions and one MIDI track.
 		// We build an 'ADL ' resource from that:

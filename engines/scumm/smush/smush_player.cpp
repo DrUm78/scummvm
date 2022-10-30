@@ -982,7 +982,7 @@ SmushFont *SmushPlayer::getFont(int font) {
 	} else {
 		int numFonts = (_vm->_game.id == GID_CMI && !(_vm->_game.features & GF_DEMO)) ? 5 : 4;
 		assert(font >= 0 && font < numFonts);
-		sprintf(file_font, "font%d.nut", font);
+		Common::sprintf_s(file_font, "font%d.nut", font);
 		_sf[font] = new SmushFont(_vm, file_font, _vm->_game.id == GID_DIG && font != 0);
 	}
 
@@ -1193,6 +1193,15 @@ void SmushPlayer::play(const char *filename, int32 speed, int32 offset, int32 st
 	_frame = startFrame;
 
 	_pauseTime = 0;
+
+	// This piece of code is used to ensure there are
+	// no audio hiccups while loading the SMUSH video;
+	// Each version of the engine does it in its own way.
+	if (_imuseDigital->isFTSoundEngine()) {
+		_imuseDigital->fillStreamsWhileMusicCritical(20);
+	} else {
+		_imuseDigital->floodMusicBuffer();
+	}
 
 	int skipped = 0;
 

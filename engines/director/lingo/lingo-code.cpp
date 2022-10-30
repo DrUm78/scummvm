@@ -314,6 +314,8 @@ void Lingo::pushContext(const Symbol funcSym, bool allowRetVal, Datum defaultRet
 	if (debugChannelSet(2, kDebugLingoExec)) {
 		g_lingo->printCallStack(0);
 	}
+	g_lingo->_pc = 0;
+	g_debugger->pushContextHook();
 }
 
 void Lingo::popContext(bool aborting) {
@@ -373,6 +375,8 @@ void Lingo::popContext(bool aborting) {
 	}
 
 	delete fp;
+
+	g_debugger->popContextHook();
 }
 
 bool Lingo::hasFrozenContext() {
@@ -937,10 +941,7 @@ void LC::c_starts() {
 
 	int res = s1.hasPrefix(s2) ? 1 : 0;
 
-	d1.type = INT;
-	d1.u.i = res;
-
-	g_lingo->push(d1);
+	g_lingo->push(Datum(res));
 }
 
 void LC::c_intersects() {
@@ -1277,8 +1278,7 @@ Datum LC::compareArrays(Datum (*compareFunc)(Datum, Datum), Datum d1, Datum d2, 
 	}
 
 	Datum res;
-	res.type = INT;
-	res.u.i = location ? -1 : 1;
+	res = location ? -1 : 1;
 	Datum a = d1;
 	Datum b = d2;
 	for (uint i = 0; i < arraySize; i++) {
@@ -1326,9 +1326,9 @@ Datum LC::eqData(Datum d1, Datum d2) {
 			d1.type == PARRAY || d2.type == PARRAY) {
 		return LC::compareArrays(LC::eqData, d1, d2, false, true);
 	}
-	d1.u.i = d1.equalTo(d2, true);
-	d1.type = INT;
-	return d1;
+	Datum check;
+	check = d1.equalTo(d2, true);
+	return check;
 }
 
 void LC::c_eq() {
@@ -1342,9 +1342,9 @@ Datum LC::neqData(Datum d1, Datum d2) {
 			d1.type == PARRAY || d2.type == PARRAY) {
 		return LC::compareArrays(LC::neqData, d1, d2, false, true);
 	}
-	d1.u.i = !d1.equalTo(d2, true);
-	d1.type = INT;
-	return d1;
+	Datum check;
+	check = !d1.equalTo(d2, true);
+	return check;
 }
 
 void LC::c_neq() {
@@ -1358,9 +1358,9 @@ Datum LC::gtData(Datum d1, Datum d2) {
 			d1.type == PARRAY || d2.type == PARRAY) {
 		return LC::compareArrays(LC::gtData, d1, d2, false, true);
 	}
-	d1.u.i = d1 > d2 ? 1 : 0;
-	d1.type = INT;
-	return d1;
+	Datum check;
+	check = (d1 > d2 ? 1 : 0);
+	return check;
 }
 
 void LC::c_gt() {
@@ -1374,9 +1374,9 @@ Datum LC::ltData(Datum d1, Datum d2) {
 			d1.type == PARRAY || d2.type == PARRAY) {
 		return LC::compareArrays(LC::ltData, d1, d2, false, true);
 	}
-	d1.u.i = d1 < d2 ? 1 : 0;
-	d1.type = INT;
-	return d1;
+	Datum check;
+	check = d1 < d2 ? 1 : 0;
+	return check;
 }
 
 void LC::c_lt() {
@@ -1390,9 +1390,9 @@ Datum LC::geData(Datum d1, Datum d2) {
 			d1.type == PARRAY || d2.type == PARRAY) {
 		return LC::compareArrays(LC::geData, d1, d2, false, true);
 	}
-	d1.u.i = d1 >= d2 ? 1 : 0;
-	d1.type = INT;
-	return d1;
+	Datum check;
+	check = d1 >= d2 ? 1 : 0;
+	return check;
 }
 
 void LC::c_ge() {
@@ -1406,9 +1406,9 @@ Datum LC::leData(Datum d1, Datum d2) {
 			d1.type == PARRAY || d2.type == PARRAY) {
 		return LC::compareArrays(LC::leData, d1, d2, false, true);
 	}
-	d1.u.i = d1 <= d2 ? 1 : 0;
-	d1.type = INT;
-	return d1;
+	Datum check;
+	check =  d1 <= d2 ? 1 : 0;
+	return check;
 }
 
 void LC::c_le() {
@@ -1632,6 +1632,7 @@ void LC::call(const Symbol &funcSym, int nargs, bool allowRetVal) {
 	}
 
 	if (funcSym.type != HANDLER) {
+		g_debugger->builtinHook(funcSym);
 		uint stackSizeBefore = g_lingo->_stack.size() - nargs;
 
 		if (target.type != VOID) {
@@ -1671,8 +1672,6 @@ void LC::call(const Symbol &funcSym, int nargs, bool allowRetVal) {
 	}
 
 	g_lingo->pushContext(funcSym, allowRetVal, defaultRetVal);
-
-	g_lingo->_pc = 0;
 }
 
 void LC::c_procret() {
@@ -1734,9 +1733,13 @@ void LC::c_delete() {
 			break;
 		case kChunkItem:
 		case kChunkLine:
-			// last char of the first portion is the delimiter. skip it.
-			if (start > 0)
+			// when deleting the first item, include the delimiter after the item
+			// deleting another item, remove the delimiter in front
+			if (start == 0) {
+				end++;
+			} else {
 				start--;
+			}
 			break;
 		}
 	}

@@ -904,6 +904,10 @@ bool Script::playvideofromref(uint32 fileref, bool loopUntilAudioDone) {
 	// It isn't the current video, open it
 	if (fileref != _videoRef) {
 
+		if (_fastForwarding && !ConfMan.getBool("speedrun_mode")) {
+			resetFastForward();
+		}
+
 		// Debug bitflags
 		debugCN(1, kDebugScript, "Groovie::Script: Play video 0x%04X (bitflags:", fileref);
 		for (int i = 15; i >= 0; i--) {
@@ -946,6 +950,19 @@ bool Script::playvideofromref(uint32 fileref, bool loopUntilAudioDone) {
 			if (_version == kGroovieCDY && _scriptFile == "26a_graf.grv")
 				_bitflags |= 1;
 			_vm->_videoPlayer->load(_videoFile, _bitflags);
+
+			// Find correct filename
+			ResInfo info;
+			_vm->_resMan->getResInfo(fileref, info);
+
+			// Prepend the GJD name and remove the extension
+			Common::String subtitleName = _vm->_resMan->getGjdName(info);
+			subtitleName = subtitleName.substr(0, subtitleName.size() - 4);
+			subtitleName.toUppercase();
+			// add the filename without the extension, then add the .txt extension
+			subtitleName += "-" + info.filename.substr(0, info.filename.size() - 3) + "txt";
+
+			_vm->_videoPlayer->loadSubtitles(subtitleName.c_str());
 		} else {
 			error("Groovie::Script: Couldn't open file");
 			return true;
@@ -973,8 +990,14 @@ bool Script::playvideofromref(uint32 fileref, bool loopUntilAudioDone) {
 			// End the playback
 			return true;
 		}
-		_vm->_videoPlayer->fastForward();
-		_fastForwarding = true;
+		if (_fastForwarding && !ConfMan.getBool("speedrun_mode")) {
+			resetFastForward();
+			if (!_fastForwarding)
+				_vm->_videoPlayer->setOverrideSpeed(false);
+		} else {
+			_vm->_videoPlayer->fastForward();
+			_fastForwarding = true;
+		}
 	} else if (_fastForwarding) {
 		_vm->_videoPlayer->fastForward();
 	}
@@ -1182,7 +1205,7 @@ void Script::o_inputloopend() {
 		}
 		_vm->_grvCursorMan->show(true);
 
-		// Go back to the begining of the loop
+		// Go back to the beginning of the loop
 		_currentInstruction = _inputLoopAddress;
 
 		// There's nothing to do until we get some input
@@ -2170,7 +2193,7 @@ void Script::o2_videofromref() {
 	// Skip the 11th Hour intro videos on right mouse click, instead of
 	// fast-forwarding them. This has the same effect as pressing 'p' twice in
 	// the skulls screen after the Groovie logo
-	if (_version == kGroovieT11H && _currentInstruction == 0x0560 && fileref != _videoRef)
+	if (_version == kGroovieT11H && _currentInstruction == 0x0560 && fileref != _videoRef && _scriptFile == "script.grv")
 		_videoSkipAddress = 1417;
 
 	if (_version == kGroovieT11H && fileref != _videoRef && !ConfMan.getBool("originalsaveload")) {

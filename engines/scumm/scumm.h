@@ -567,7 +567,7 @@ protected:
 	 * integer part as needed on subsequent function calls.
 	 */
 	uint32 getIntegralTime(double fMsecs);
-	double _msecFractParts;
+	double _msecFractParts = 0.0;
 
 	virtual void processInput();
 	virtual void processKeyboard(Common::KeyState lastKeyHit);
@@ -1385,7 +1385,6 @@ protected:
 	uint16 _defaultTextSpeed = 0;
 	int _saveSound = 0;
 	bool _native_mt32 = false;
-	bool _enable_gs = false;
 	bool _copyProtection = false;
 
 	// Indy4 Amiga specific
@@ -1481,7 +1480,7 @@ protected:
 	virtual void CHARSET_1();
 	bool newLine();
 	void drawString(int a, const byte *msg);
-	void fakeBidiString(byte *ltext, bool ignoreVerb) const;
+	virtual void fakeBidiString(byte *ltext, bool ignoreVerb, int ltextSize) const;
 	void debugMessage(const byte *msg);
 	virtual void showMessageDialog(const byte *msg);
 

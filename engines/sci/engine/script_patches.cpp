@@ -183,6 +183,8 @@ static const char *const selectorNameTable[] = {
 	"back",         // KQ7
 	"font",         // KQ7
 	"setHeading",   // KQ7
+	"newPic",       // Lighthouse
+	"start",        // Lighthouse
 	"setScale",     // LSL6hires, QFG4
 	"setScaler",    // LSL6hires, QFG4
 	"showTitle",    // LSL6hires
@@ -207,6 +209,7 @@ static const char *const selectorNameTable[] = {
 	"retreat",      // QFG4
 	"sayMessage",   // QFG4
 	"setLooper",    // QFG4
+	"use",          // QFG4
 	"useStamina",   // QFG4
 	"value",        // QFG4
 	"setupExit",    // SQ6
@@ -320,6 +323,8 @@ enum ScriptPatcherSelectors {
 	SELECTOR_back,
 	SELECTOR_font,
 	SELECTOR_setHeading,
+	SELECTOR_newPic,
+	SELECTOR_start,
 	SELECTOR_setScale,
 	SELECTOR_setScaler,
 	SELECTOR_showTitle,
@@ -344,6 +349,7 @@ enum ScriptPatcherSelectors {
 	SELECTOR_retreat,
 	SELECTOR_sayMessage,
 	SELECTOR_setLooper,
+	SELECTOR_use,
 	SELECTOR_useStamina,
 	SELECTOR_value,
 	SELECTOR_setupExit,
@@ -2114,7 +2120,7 @@ static const uint16 freddypharkasPatchMacEasterEggHang[] = {
 //  require precise placement to blend in with those backgrounds.
 //
 // The Mac easter egg adds such a view. View 275 contains a hand in the lake
-//  holding a Maintosh computer. Because this feature was developed against the
+//  holding a Macintosh computer. Because this feature was developed against the
 //  Mac interpreter, the y coordinate that achieved the water effect is really
 //  off by one. In our interpreter, which doesn't have this bug, the view
 //  appears one pixel lower than intended and doesn't match the background.
@@ -2487,7 +2493,7 @@ static const uint16 hoyle5PatchSetScale[] = {
 // In these two collections, the scripts for the other games have been removed.
 // Choosing any other game than the above results in a "No script found" error.
 // The original game did not show the game selection screen, as there were
-// direct shortucts to each game.
+// direct shortcuts to each game.
 // We do show the game selection screen for Children's Collection, thus we
 // disable all the games which are not included in this version:
 // - Hearts (script 300)
@@ -5309,7 +5315,7 @@ static const SciScriptPatcherEntry kq5Signatures[] = {
 // ===========================================================================
 // In the garden (room 480), when giving the milk bottle to one of the babies,
 // script 481 starts a looping a baby cry sound (cryMusic). However, that
-// particular sound has an overriden check() method that explicitly restarts
+// particular sound has an overridden check() method that explicitly restarts
 // the sound, even if it's set to be looped. Thus the same sound is played
 // twice, squelching all other sounds.
 //
@@ -7345,11 +7351,124 @@ static const uint16 lighthouseCompassPatch[] = {
 	PATCH_END
 };
 
+// The script for opening the underwater safe has a timing bug that relies on
+//  the original interpreter being too slow to play the robot video at the
+//  specified frame rate. In ScummVM this causes the submarine arm animation to
+//  be out of sync with the safe door, repeat itself, and end on the wrong cel.
+//
+// openSafe:changeState(0) starts two animations: robot 596 (the safe door) and
+//  view 595 (the submarine arm). State 1 cues when the robot completes and
+//  resets the view's cel on the assumption that the view's cycler has already
+//  completed. But the robot is 50 frames at 2 ticks per frame (100 ticks) while
+//  the view is 39 ticks at 6 ticks per frame (234 ticks) so the robot should
+//  complete first. This worked in the original interpreter because it wasn't
+//  fast enough to run this scene at 2 ticks per frame and because Lighthouse's
+//  RobotPlayer script has a bug in its time calculations that amplifies delays
+//  when the specified frame rate can't be achieved. This combination caused the
+//  the robot to animate slower than specified and complete after the view.
+//
+// We fix this by lowering the robot's specified frame rate to the effective
+//  frame rate from the original.
+//
+// Applies to: All versions
+// Responsible Method: openSafe:changeState(0)
+// Fixes bug: #10226
+static const uint16 lighthouseOpenSafeSpeedSignature[] = {
+	0x39, SIG_SELECTOR8(init),             // pushi init
+	SIG_MAGICDWORD,
+	0x3c,                                  // dup
+	0x38, SIG_UINT16(0x0254),              // pushi 0254 [ view 585 ]
+	SIG_ADDTOOFFSET(+10),
+	0x38, SIG_SELECTOR16(start),           // pushi start
+	0x7a,                                  // push2
+	0x78,                                  // push1
+	0x39, 0x1e,                            // pushi 1e [ 30 frames per second (100 ticks) ]
+	SIG_END
+};
+
+static const uint16 lighthouseOpenSafeSpeedPatch[] = {
+	PATCH_ADDTOOFFSET(+21),
+	0x39, 0x0a,                            // pushi 0a [ 10 frames per second (300 ticks) ]
+	PATCH_END
+};
+
+// At the top of the roost tower there can be up to three mechanical birds, but
+//  they can appear and disappear inconsistently depending on which direction
+//  the player was facing before turning. rm510:changeScene has two bugs that
+//  set the wrong scene/pic links on the exit cursors once Birdman has appeared:
+//
+// 1. When facing the ladder (scene 504) and there are 3 birds, exitRight:curPic
+//    is set to 7506 (no birds) instead of 7504 (left and broken center bird).
+// 2. When facing right of the perch and there are no birds (scene 502), there
+//    is no code to handle the bird count being 0, and so exitLeft:curPic is set
+//    to 4511 (left and broken center bird) instead of 501 (no birds).
+//
+// We fix this by setting the correct scene/pic view when facing the ladder and
+//  adding the missing bird count test when facing right of the perch.
+//
+// Applies to: All versions
+// Responsible method: rm510:changeScene
+// Fixes bug: #10265
+static const uint16 lighthouseRoostBirdPicSignature1[] = {
+	0x3c,                                  // dup
+	0x35, 0x03,                            // ldi 03
+	0x1a,                                  // eq? [ bird count == 3 ]
+	0x31, 0x14,                            // bnt 14
+	0x38, SIG_SELECTOR16(newPic),          // pushi newPic
+	SIG_MAGICDWORD,
+	0x7a,                                  // push2
+	0x38, SIG_UINT16(0x1d52),              // pushi 1d52 [ no birds ]
+	0x39, 0x04,                            // pushi 04
+	0x7a,                                  // push2
+	0x78,                                  // push1
+	0x39, 0x04,                            // pushi 04
+	0x43, 0x02, SIG_UINT16(0x0004),        // callk ScriptID 04 [ exitRight ]
+	0x4a, SIG_UINT16(0x0008),              // send 08 [ exitRight newPic: 7506 4 ]
+	SIG_END
+};
+
+static const uint16 lighthouseRoostBirdPicPatch1[] = {
+	PATCH_ADDTOOFFSET(+10),
+	0x38, PATCH_UINT16(0x1d50),            // pushi 1d50 [ left bird + broken bird ]
+	PATCH_END
+};
+
+static const uint16 lighthouseRoostBirdPicSignature2[] = {
+	SIG_MAGICDWORD,
+	0x3c,                                  // dup
+	0x34, SIG_UINT16(0x01f6),              // ldi 01f6
+	0x1a,                                  // eq? [ is scene 502? ]
+	0x31, 0x68,                            // bnt 68
+	0x78,                                  // push1
+	0x38, SIG_UINT16(0x0182),              // pushi 0182 [ flag 386 ]
+	0x45, 0x05, SIG_UINT16(0x0002),        // callb proc5_2 [ has birdman attacked? ]
+	0x31, 0x33,                            // bnt 33 [ no birds to the left ]
+	0x89, 0xd1,                            // lsg d1 [ bird count ]
+	0x35, 0x01,                            // ldi 01
+	0x1a,                                  // eq?
+	SIG_END
+};
+
+static const uint16 lighthouseRoostBirdPicPatch2[] = {
+	PATCH_ADDTOOFFSET(+7),
+	0x89, 0x8c,                            // lsg 8c   [ flag global ]
+	0x34, PATCH_UINT16(0x2000),            // ldi 2000 [ flag 386 ]
+	0x12,                                  // and      [ is flag 386 set? ]
+	0x31, 0x35,                            // bnt 35   [ no birds to left ]
+	0x81, 0xd1,                            // lag d1   [ bird count ]
+	0x31, 0x31,                            // bnt 31   [ no birds to left if bird count == 0 ]
+	0x39, 0x01,                            // pushi 01
+	PATCH_END
+};
+
 //          script, description,                                      signature                         patch
 static const SciScriptPatcherEntry lighthouseSignatures[] = {
 	{  true,     5, "fix bad globals clear after credits",         1, lighthouseFlagResetSignature,     lighthouseFlagResetPatch },
 	{  true,     9, "fix compass in submarine",                    1, lighthouseCompassSignature,       lighthouseCompassPatch },
 	{  true,   360, "fix slow computer memory counter",            1, lighthouseMemoryCountSignature,   lighthouseMemoryCountPatch },
+	{  true,   510, "fix roost bird pic",                          1, lighthouseRoostBirdPicSignature1, lighthouseRoostBirdPicPatch1 },
+	{  true,   510, "fix roost bird pic",                          1, lighthouseRoostBirdPicSignature2, lighthouseRoostBirdPicPatch2 },
+	{  true,   700, "fix open safe speed",                         1, lighthouseOpenSafeSpeedSignature, lighthouseOpenSafeSpeedPatch },
 	{  true, 64928, "Narrator lockup fix",                         1, sciNarratorLockupSignature,       sciNarratorLockupPatch },
 	{  true, 64990, "increase number of save games (1/2)",         1, sci2NumSavesSignature1,           sci2NumSavesPatch1 },
 	{  true, 64990, "increase number of save games (2/2)",         1, sci2NumSavesSignature2,           sci2NumSavesPatch2 },
@@ -8195,7 +8314,7 @@ static const uint16 larry2PatchWearParachutePoints[] = {
 //  three times with no delay between the messages. In the original, each was
 //  visibly erased before the next because the interpreter drew directly to the
 //  screen. This created the necessary flicker effect indicating that the three
-//  identical messages were separte. In ScummVM there is no flicker because the
+//  identical messages were separate. In ScummVM there is no flicker because the
 //  window is updated with the screen buffer when processing events or between
 //  game cycles. The result is a single message box that appears to not respond
 //  to Enter or clicks until the third one dismisses it.
@@ -9550,7 +9669,7 @@ static const uint16 laurabow2CDPatchFixMuseumActorLoops2[] = {
 	PATCH_END
 };
 
-// When entering the main musem party room (w/ the golden Egyptian head), Laura
+// When entering the main museum party room (w/ the golden Egyptian head), Laura
 // is walking a bit into the room automatically. If you press a mouse button
 // while this is happening, you will get stuck inside that room and won't be
 // able to exit it anymore.
@@ -14120,9 +14239,9 @@ static const uint16 qfg3PatchChiefPriority[] = {
 };
 
 // There are 3 points that can't be achieved in the game. They should've been
-// awarded for telling Rakeesh and Kreesha (room 285) about the Simabni
+// awarded for telling Rakeesh and Kreesha (room 285) about the Simbani
 // initiation.
-// However the array of posibble messages the hero can tell in that room
+// However the array of possible messages the hero can tell in that room
 // (local[156]) is missing the "Tell about Initiation" message (#31) which
 // awards these points.
 // This patch adds the message to that array, thus allowing the hero to tell
@@ -14147,7 +14266,7 @@ static const uint16 qfg3SignatureMissingPoints1[] = {
 	SIG_UINT16(0xffd7),                 // -41 "Greet"
 	SIG_UINT16(0xffb4),                 // -76 "Say Good-bye"
 	SIG_UINT16(0x0001),                 //   1 "Tell about Tarna"
-	SIG_UINT16(0xffe2),                 // -30 "Tell about Simani"
+	SIG_UINT16(0xffe2),                 // -30 "Tell about Simbani"
 	SIG_UINT16(0xffb3),                 // -77 "Tell about Prisoner"
 	SIG_UINT16(0xffdf),                 // -33 "Dispelled Leopard Lady"
 	SIG_UINT16(0xffde),                 // -34 "Tell about Leopard Lady"
@@ -19254,6 +19373,64 @@ static const uint16 qfg4DeathScreenKeyboardPatch[] = {
 	PATCH_END
 };
 
+// There are several rooms in which throwing a projectile (dagger or rock) uses
+//  two or three items instead of just one. In addition, throwing a dagger in
+//  these rooms when the player has exactly two locks up the game. For example,
+//  this occurs in room 600 at night when throwing at the castle gate.
+//
+// These problems are due to an incorrect coding pattern with several mistakes
+//  that was repeated in rooms 600, 625, 730, and 740. These scripts manually
+//  remove the thrown projectile from inventory with hero:use, but that is
+//  incorrect because the global script `project` does this for all throws.
+//  These scripts also prevent the player from throwing their last dagger with a
+//  message, but they repeat the check after removing the item from inventory
+//  and make a broken call to gloryMessgaer:say within a handsOff script. This
+//  redunant check wouldn't have any effect if it weren't for the first bug.
+//
+// We fix this by patching out all of the hero:use calls that consume daggers or
+//  rocks in the rooms with this bug. There are several forms of these scripts,
+//  so we patch the "use" selector to "has" so that the calls have no effect.
+//
+// Applies to: All versions
+// Responsible methods: aGate:doVerb, rm625:doVerb, theGhost:doVerb, avis:doVerb,
+//                      altarHead:doVerb, sThrowIt:changeState in script 740
+// Fixes bug: #13824
+static const uint16 qfg4UseExtraProjectileSignature1[] = {
+	SIG_MAGICDWORD,
+	0x38, SIG_SELECTOR16(use),          // pushi use
+	0x7a,                               // push2
+	0x39, SIG_ADDTOOFFSET(+1),          // pushi 05 [ dagger ] or 06 [ rock ]
+	0x78,                               // push1
+	0x81, 0x00,                         // lag 00
+	0x4a, SIG_UINT16(0x0008),           // send 08 [ hero use: (5 or 6) 1 ]
+	0x35, SIG_ADDTOOFFSET(+1),          // ldi 01 or 02
+	0xa3,                               // sal
+	SIG_END
+};
+
+static const uint16 qfg4UseExtraProjectileSignature2[] = {
+	0x38, SIG_SELECTOR16(use),          // pushi use
+	0x78,                               // push1
+	0x39, SIG_MAGICDWORD, 0x05,         // pushi 05 [ dagger ]
+	0x81, 0x00,                         // lag 00
+	0x4a, SIG_UINT16(0x0006),           // send 06 [ hero use: 5 ]
+	SIG_END
+};
+
+static const uint16 qfg4UseExtraProjectileSignature3[] = {
+	0x38, SIG_SELECTOR16(use),          // pushi use
+	0x78,                               // push1
+	0x39, SIG_MAGICDWORD, 0x06,         // pushi 06 [ rock ]
+	0x81, 0x00,                         // lag 00
+	0x4a, SIG_UINT16(0x0006),           // send 06 [ hero use: 6 ]
+	SIG_END
+};
+
+static const uint16 qfg4UseExtraProjectilePatch[] = {
+	0x38, PATCH_SELECTOR16(has),        // pushi has
+	PATCH_END
+};
+
 //          script, description,                                     signature                      patch
 static const SciScriptPatcherEntry qfg4Signatures[] = {
 	{  true,     0, "prevent autosave from deleting save games",   1, qfg4AutosaveSignature,         qfg4AutosavePatch },
@@ -19316,6 +19493,8 @@ static const SciScriptPatcherEntry qfg4Signatures[] = {
 	{  true,   600, "fix passable closed gate after geas",         1, qfg4DungeonGateSignature,      qfg4DungeonGatePatch },
 	{  true,   600, "fix gate options after geas",                 1, qfg4GateOptionsSignature,      qfg4GateOptionsPatch },
 	{  true,   600, "fix paladin's necrotaur message",             1, qfg4NecrotaurMessageSignature, qfg4NecrotaurMessagePatch },
+	{  true,   600, "fix using extra projectile",                  2, qfg4UseExtraProjectileSignature1, qfg4UseExtraProjectilePatch },
+	{  true,   625, "fix using extra projectile",                  4, qfg4UseExtraProjectileSignature1, qfg4UseExtraProjectilePatch },
 	{  true,   630, "fix great hall entry from barrel room",       1, qfg4GreatHallEntrySignature,   qfg4GreatHallEntryPatch },
 	{  true,   633, "fix stairway pathfinding",                    1, qfg4StairwayPathfindingSignature, qfg4StairwayPathfindingPatch },
 	{  true,   633, "Floppy: fix argument message",                1, qfg4ArgumentMessageFloppySignature,  qfg4ArgumentMessageFloppyPatch },
@@ -19357,6 +19536,10 @@ static const SciScriptPatcherEntry qfg4Signatures[] = {
 	{  true,   730, "fix ad avis projectile message",              1, qfg4AdAvisMessageSignature,    qfg4AdAvisMessagePatch },
 	{  true,   730, "fix throwing weapons at ad avis",             1, qfg4AdAvisThrowWeaponSignature,qfg4AdAvisThrowWeaponPatch },
 	{  true,   730, "fix fighter's spear animation",               1, qfg4FighterSpearSignature,     qfg4FighterSpearPatch },
+	{  true,   730, "fix using extra projectile",                  1, qfg4UseExtraProjectileSignature2, qfg4UseExtraProjectilePatch },
+	{  true,   730, "fix using extra projectile",                  1, qfg4UseExtraProjectileSignature3, qfg4UseExtraProjectilePatch },
+	{  true,   740, "fix using extra projectile",                  2, qfg4UseExtraProjectileSignature2, qfg4UseExtraProjectilePatch },
+	{  true,   740, "fix using extra projectile",                  1, qfg4UseExtraProjectileSignature3, qfg4UseExtraProjectilePatch },
 	{  true,   770, "fix bone cage teller",                        1, qfg4BoneCageTellerSignature,   qfg4BoneCageTellerPatch },
 	{  true,   800, "fix setScaler calls",                         1, qfg4SetScalerSignature,        qfg4SetScalerPatch },
 	{  true,   800, "fix grapnel removing hero's scaler",          1, qfg4RopeScalerSignature,       qfg4RopeScalerPatch },

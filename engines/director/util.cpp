@@ -27,6 +27,7 @@
 #include "common/tokenizer.h"
 #include "common/zlib.h"
 
+#include "director/types.h"
 #include "graphics/macgui/macwindowmanager.h"
 #include "graphics/macgui/macfontmanager.h"
 
@@ -420,16 +421,18 @@ bool testPath(Common::String &path, bool directory) {
 		if (directory_list.empty() && !directory) {
 			mode = Common::FSNode::kListAll;
 		}
-		d.getChildren(fslist, mode);
+		bool hasChildren = d.getChildren(fslist, mode);
+		if (!hasChildren)
+			continue;
 
 		bool exists = false;
 		for (Common::FSList::iterator i = fslist.begin(); i != fslist.end(); ++i) {
 			// for each element in the path, choose the first FSNode
 			// with a case-insensitive matcing name
 			if (i->getName().equalsIgnoreCase(token)) {
-				// If this is a directory, it's not a valid candidate
+				// If this the final path component, check if we're allowed to match with a directory
 				node = Common::FSNode(*i);
-				if (node.isDirectory()) {
+				if (directory_list.empty() && !directory && node.isDirectory()) {
 					continue;
 				}
 
@@ -643,6 +646,15 @@ Common::String testExtensions(Common::String component, Common::String initialPa
 	const char *extsD4[] = { ".DIR", ".DXR", nullptr };
 
 	const char **exts = (g_director->getVersion() >= 400) ? extsD4 : extsD3;
+	for (int i = 0; exts[i]; ++i) {
+		Common::String newpath = convPath + component.c_str() + exts[i];
+
+		debug(9, "testExtensions(): sT %s -> try %s, comp: %s", initialPath.c_str(), newpath.c_str(), component.c_str());
+		Common::String res = wrappedPathMakeRelative(newpath, false, false);
+
+		if (testPath(res))
+			return res;
+	}
 	for (int i = 0; exts[i]; ++i) {
 		Common::String newpath = convPath + convertMacFilename(component.c_str()) + exts[i];
 
@@ -1025,7 +1037,7 @@ Common::String utf8ToPrintable(const Common::String &str) {
 
 Common::String castTypeToString(const CastType &type) {
 	Common::String res;
-	switch(type) {
+	switch (type) {
 	case kCastBitmap:
 		res = "bitmap";
 		break;

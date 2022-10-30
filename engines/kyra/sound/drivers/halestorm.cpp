@@ -85,18 +85,22 @@ static int DEBUG_BUFFERS_COUNT = 0;
 class ShStBuffer {
 public:
 	ShStBuffer(const ShStBuffer &buff) : ptr(buff.ptr), len(buff.len), lifes(buff.lifes) { if (lifes) (*lifes)++; }
+	ShStBuffer(ShStBuffer &&buff) noexcept : ptr(buff.ptr), len(buff.len), lifes(buff.lifes) { buff.lifes = nullptr; }
 	ShStBuffer(const void *p, uint32 cb, bool allocate = false) : ptr((const uint8*)p), len(cb), lifes(nullptr) { if (allocate) memcpy(crtbuf(), p, cb); }
 	ShStBuffer() : ShStBuffer(nullptr, 0) {}
-	ShStBuffer(Common::SeekableReadStream *s) : len(s ? s->size() : 0), lifes(nullptr) { s->read(crtbuf(), len); }
+	ShStBuffer(Common::SeekableReadStream *s) : len(s ? s->size() : 0), lifes(nullptr), ptr(nullptr) { if (s) s->read(crtbuf(), len); }
 	~ShStBuffer() { dcrlif(); }
-	void operator=(Common::SeekableReadStream *s) { operator=(ShStBuffer(s)); }
-	void operator=(const ShStBuffer &buff) {
-		dcrlif();
-		ptr = buff.ptr;
-		len = buff.len;
-		lifes = buff.lifes;
+	ShStBuffer &operator=(Common::SeekableReadStream *s) { return operator=(ShStBuffer(s)); }
+	ShStBuffer &operator=(ShStBuffer &&buff) noexcept {
+		trans(buff);
+		buff.lifes = nullptr;
+		return *this;
+	}
+	ShStBuffer &operator=(const ShStBuffer &buff) {
+		trans(buff);
 		if (lifes)
 			(*lifes)++;
+		return *this;
 	}
 	const uint8 *ptr;
 	uint32 len;
@@ -116,6 +120,12 @@ private:
 		*lifes = 1;
 		DEBUG_BUFFERS_COUNT++;
 		return tptr;
+	}
+	void trans(const ShStBuffer &buff) {
+		dcrlif();
+		ptr = buff.ptr;
+		len = buff.len;
+		lifes = buff.lifes;
 	}
 	int *lifes;
 };
@@ -171,7 +181,7 @@ public:
 	void setTempo(uint32 tempo);
 	void setTicksPerSecond(uint32 tps);
 
-	uint16 tempo() const { return _internalTempo; }
+	uint16 getTempo() const { return _internalTempo; }
 
 public:
 	int _numChanMusic;
@@ -684,9 +694,9 @@ bool HSMidiParser::loadTracks(HSSong &song) {
 	for (int i = 0; i < ARRAYSIZE(_partPrograms); ++i)
 		_partPrograms[i] = i;
 
-	Common::SeekableReadStream *midi = _driver->_res->getResource(song._midiResId, 'MIDI');
+	Common::SeekableReadStream *midi = _driver->_res->getResource(song._midiResId, MKTAG('M', 'I', 'D', 'I'));
 	if (!midi)
-		midi = _driver->_res->getResource(song._midiResId, 'Midi');
+		midi = _driver->_res->getResource(song._midiResId, MKTAG('M', 'i', 'd', 'i'));
 	assert(midi);
 
 	_data = midi;
@@ -695,7 +705,7 @@ bool HSMidiParser::loadTracks(HSSong &song) {
 	_tracks.clear();
 
 	while (in < end) {
-		if (READ_BE_UINT32(in) == 'MThd')
+		if (READ_BE_UINT32(in) == MKTAG('M', 'T', 'h', 'd'))
 			break;
 		in += 2;
 	}
@@ -707,7 +717,7 @@ bool HSMidiParser::loadTracks(HSSong &song) {
 		song.setTicksPerSecond(tps);
 
 	while (in < end) {
-		if (READ_BE_UINT32(in) == 'MTrk')
+		if (READ_BE_UINT32(in) == MKTAG('M', 'T', 'r', 'k'))
 			break;
 		++in;
 	}
@@ -718,7 +728,7 @@ bool HSMidiParser::loadTracks(HSSong &song) {
 		ShStBuffer track(in + 8, READ_BE_UINT32(in + 4));
 		_tracks.push_back(track);
 		in += (track.len + 8);
-	} while (in < end && READ_BE_UINT32(in) == 'MTrk');
+	} while (in < end && READ_BE_UINT32(in) == MKTAG('M', 'T', 'r', 'k'));
 
 	uint8 prg = 0;
 	for (Common::Array<ShStBuffer>::const_iterator i = _tracks.begin(); i != _tracks.end(); ++i) {
@@ -763,7 +773,7 @@ bool HSMidiParser::nextTick(HSSong &song) {
 			s->status = 'R';
 			checkPos = false;
 		} else {
-			s->ticker -= song.tempo();
+			s->ticker -= song.getTempo();
 			if (s->ticker >= 0)
 				continue;
 		}
@@ -984,12 +994,12 @@ template<typename T> void HSLowLevelDriver::generateData(T *dst, uint32 len, Aud
 }
 
 int HSLowLevelDriver::cmd_startSong(va_list &arg) {
-	Common::SeekableReadStream *song = _res->getResource(va_arg(arg, int), 'SONG');
+	Common::SeekableReadStream *song = _res->getResource(va_arg(arg, int), MKTAG('S', 'O', 'N', 'G'));
 	Common::SeekableReadStream *midi = nullptr;
 	if (song) {
 		uint16 idm = song->readUint16BE();
-		if (!(midi = _res->getResource(idm, 'MIDI')))
-			midi = _res->getResource(idm, 'Midi');
+		if (!(midi = _res->getResource(idm, MKTAG('M', 'I', 'D', 'I'))))
+			midi = _res->getResource(idm, MKTAG('M', 'i', 'd', 'i'));
 	}
 	if (!song || !midi)
 		error("HSLowLevelDriver::cmd_startSong(): Error encountered while loading song.");
@@ -1114,12 +1124,14 @@ int HSLowLevelDriver::cmd_playSoundEffect(va_list &arg) {
 	if (!vc || !vc->dataPtr || !_song._numChanSfx)
 		return 0;
 
-	HSSoundChannel *chan = &_chan[_song._numChanMusic];
+	HSSoundChannel *chan = nullptr;
 	int16 lowest = 32767;
 	for (int i = _song._numChanMusic; i < _song._numChanMusic + _song._numChanSfx; ++i) {
 		HSSoundChannel *c = &_chan[i];
-		if (c->status < 0)
+		if (c->status < 0) {
+			chan = c;
 			break;
+		}
 		if (c->status < lowest) {
 			chan = c;
 			lowest = c->status;
@@ -1820,7 +1832,7 @@ void HSLowLevelDriver::noteOn(uint8 part, uint8 prg, uint8 note, uint8 velo, uin
 		}
 	}
 
-	uint16 type = snd ? READ_BE_UINT16(snd) : 0;
+	uint16 type = READ_BE_UINT16(snd);
 	uint16 n = 0;
 	if (type == 1 || type == 2) {
 		uint16 numTypes = (type == 1) ? READ_BE_UINT16(snd + 2) : 0;
@@ -1963,7 +1975,7 @@ ShStBuffer HSLowLevelDriver::loadInstrumentSamples(int id, bool sharedBuffer) {
 		}
 	}
 
-	Common::SeekableReadStream *snd = _res->getResource(id, 'snd ');
+	Common::SeekableReadStream *snd = _res->getResource(id, MKTAG('s', 'n', 'd', ' '));
 	if (!snd) {
 		// This happens from time to time, but apparently not with resources that are actually
 		// meant to be used. So I don't see any value in throwing a warning here...
@@ -2430,7 +2442,7 @@ bool HSSoundSystem::loadSamplesIntoSlot(uint16 id, SampleSlot &slot, bool regist
 
 	slot.reverse = false;
 
-	Common::SeekableReadStream *in = _res->getResource(id, 'csnd');
+	Common::SeekableReadStream *in = _res->getResource(id, MKTAG('c', 's', 'n', 'd'));
 	if (in) {
 		uint32 inSize = (uint32)in->size() - 4;
 		uint32 outSize = in->readUint32BE();
@@ -2440,7 +2452,7 @@ bool HSSoundSystem::loadSamplesIntoSlot(uint16 id, SampleSlot &slot, bool regist
 		memset(data, 0, outSize);
 		deltaDecompress(data, tmp, outSize, inSize);
 		delete[] tmp;
-	} else if ((in = _res->getResource(id, 'snd '))) {
+	} else if ((in = _res->getResource(id, MKTAG('s', 'n', 'd', ' ')))) {
 		uint32 inSize = (uint32)in->size();
 		data = new uint8[inSize];
 		in->read(data, inSize);
@@ -2534,14 +2546,14 @@ uint32 HSSoundSystem::calculatePlaybackDuration(uint32 numSamples, uint32 sampli
 }
 
 int HSSoundSystem::startSong(int id, int loop) {
-	Common::SeekableReadStream *song = _res->getResource(id, 'SONG');
+	Common::SeekableReadStream *song = _res->getResource(id, MKTAG('S', 'O', 'N', 'G'));
 	if (!song)
 		return -192;
 	uint16 idm = song->readUint16BE();
 	delete song;
 
-	Common::SeekableReadStream *midi = _res->getResource(idm, 'MIDI');
-	if (!midi && !(midi = _res->getResource(idm, 'Midi')))
+	Common::SeekableReadStream *midi = _res->getResource(idm, MKTAG('M', 'I', 'D', 'I'));
+	if (!midi && !(midi = _res->getResource(idm, MKTAG('M', 'i', 'd', 'i'))))
 		return -1300;
 	delete midi;
 

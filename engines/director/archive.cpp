@@ -242,6 +242,7 @@ void Archive::dumpChunk(Resource &res, Common::DumpFile &out) {
 	}
 
 	delete resStream;
+	free(data);
 }
 
 // Mac Archive code
@@ -291,7 +292,7 @@ bool MacArchive::openStream(Common::SeekableReadStream *stream, uint32 startOffs
 	_resFork = new Common::MacResManager();
 	stream->seek(startOffset);
 
-	if (!_resFork->loadFromMacBinary(*stream)) {
+	if (!_resFork->loadFromMacBinary(stream)) {
 		warning("MacArchive::openStream(): Error loading Mac Binary");
 		close();
 		return false;
@@ -316,9 +317,11 @@ void MacArchive::readTags() {
 		for (uint32 j = 0; j < idArray.size(); j++) {
 			// Avoid assigning invalid entries to _types, because other
 			// functions will assume they exist and are valid if listed.
-			if (_resFork->getResource(tagArray[i], idArray[j]) == nullptr) {
+			Common::SeekableReadStream *readStream = _resFork->getResource(tagArray[i], idArray[j]);
+			if (readStream == nullptr) {
 				continue;
 			}
+			delete readStream;
 
 			Resource &res = resMap[idArray[j]];
 
@@ -436,8 +439,11 @@ Common::SeekableReadStreamEndian *RIFFArchive::getResource(uint32 tag, uint16 id
 	const Resource &res = resMap[id];
 
 	// Adjust to skip the resource header
+	// FourCC, size and id (all 4 bytes each)
+	// Resource size excludes FourCC and size.
 	uint32 offset = res.offset + 12;
 	uint32 size = res.size - 4;
+
 	// Skip the Pascal string
 	_stream->seek(_startOffset + offset);
 	byte stringSize = _stream->readByte(); // 1 for this byte
@@ -445,12 +451,15 @@ Common::SeekableReadStreamEndian *RIFFArchive::getResource(uint32 tag, uint16 id
 	offset += stringSize + 1;
 	size -= stringSize + 1;
 
-	// Align to nearest word boundary
-	if (offset & 1) {
+	// 'DIB ' was observed to always have two 0 bytes
+	// other resources such as 'SND ' need alignment to nearest word boundary.
+	bool needsAlignment = offset & 1;
+	if (needsAlignment || tag == MKTAG('D', 'I', 'B', ' ')) {
 		offset++;
 		size--;
 	}
 
+	debugC(4, kDebugLoading, "RIFFArchive::getResource() tag: %s id: %i offset: %i size: %i", tag2str(tag), id, res.offset, res.size);
 	return new Common::SeekableSubReadStreamEndian(_stream, _startOffset + offset, _startOffset + offset + size, true, DisposeAfterUse::NO);
 }
 
@@ -493,6 +502,7 @@ bool RIFXArchive::openStream(Common::SeekableReadStream *stream, uint32 startOff
 			MacArchive *macArchive = new MacArchive();
 			if (!macArchive->openStream(macStream)) {
 				delete macArchive;
+				delete macStream;
 			} else {
 				g_director->getCurrentWindow()->probeMacBinary(macArchive);
 			}
@@ -558,7 +568,7 @@ bool RIFXArchive::openStream(Common::SeekableReadStream *stream, uint32 startOff
 		Common::DumpFile out;
 
 		char buf[256];
-		sprintf(buf, "./dumps/%s-%08x", encodePathForDump(g_director->getEXEName()).c_str(), startOffset);
+		Common::sprintf_s(buf, "./dumps/%s-%08x", encodePathForDump(g_director->getEXEName()).c_str(), startOffset);
 
 		if (out.open(buf, true)) {
 			out.write(dumpData, sz);
@@ -743,7 +753,7 @@ bool RIFXArchive::readAfterburnerMap(Common::SeekableReadStreamEndian &stream, u
 		Common::DumpFile out;
 
 		char buf[256];
-		sprintf(buf, "./dumps/%s-%s", encodePathForDump(g_director->getEXEName()).c_str(), "ABMP");
+		Common::sprintf_s(buf, "./dumps/%s-%s", encodePathForDump(g_director->getEXEName()).c_str(), "ABMP");
 
 		if (out.open(buf, true)) {
 			byte *data = (byte *)malloc(abmpStream->size());
@@ -794,7 +804,7 @@ bool RIFXArchive::readAfterburnerMap(Common::SeekableReadStreamEndian &stream, u
 
 	delete abmpStream;
 
-	// Initial load segment
+	// Handle Initial Load Segment (ILS)
 	if (!resourceMap.contains(2)) {
 		warning("RIFXArchive::readAfterburnerMap(): Map has no entry for ILS");
 		return false;

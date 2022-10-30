@@ -140,6 +140,7 @@ Engine::Engine(OSystem *syst)
 		_eventMan(_system->getEventManager()),
 		_saveFileMan(_system->getSavefileManager()),
 		_targetName(ConfMan.getActiveDomainName()),
+		_metaEngine(nullptr),
 		_pauseLevel(0),
 		_pauseStartTime(0),
 		_saveSlotToLoad(-1),
@@ -218,7 +219,7 @@ void initCommonGFX() {
 			g_system->setScaler(ConfMan.get("scaler").c_str(), ConfMan.getInt("scale_factor"));
 
 		if (gameDomain->contains("shader"))
-			g_system->setShader(ConfMan.get("shader").c_str());
+			g_system->setShader(ConfMan.get("shader"));
 	}
 }
 

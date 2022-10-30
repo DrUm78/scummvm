@@ -896,7 +896,7 @@ private:
 	/**
 	 * Assumes that filename/resname contain a resourcefile name and a resource name.
 	 * If resname is "", filename contains the path of the resource on disk.
-	 * Returns the length of the resource if if the named resource is found.
+	 * Returns the length of the resource if the named resource is found.
 	 *
 	 * If FindResource() returns non-zero, the file is hot, i.e., it is open and positioned
 	 * to the start of the resource.
@@ -1122,9 +1122,9 @@ private:
 		return _random.getRandomNumber(0xffffff);
 	}
 
-	char *itoa(int value, char *str, int base) {
+	char *itoa(int value, char *str, int base, size_t str_size) {
 		assert(base == 10);
-		sprintf(str, "%d", value);
+		Common::sprintf_s(str, str_size, "%d", value);
 		return str;
 	}
 

@@ -372,6 +372,8 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		return d;
 	}
 
+	g_debugger->entityReadHook(entity, field);
+
 	LingoArchive *mainArchive = movie->getMainLingoArch();
 	Score *score = movie->getScore();
 
@@ -380,31 +382,25 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		d = g_lingo->_actorList;
 		break;
 	case kTheBeepOn:
-		d.type = INT;
-		d.u.i = (int)g_director->getCurrentMovie()->_isBeepOn;
+		d = (int)movie->_isBeepOn;
 		break;
 	case kTheButtonStyle:
-		d.type = INT;
-		d.u.i = g_director->_wm->_mode & Graphics::kWMModeButtonDialogStyle;
+		d = (int)(g_director->_wm->_mode & Graphics::kWMModeButtonDialogStyle);
 		break;
 	case kTheCast:
 		d = getTheCast(id, field);
 		break;
 	case kTheCastMembers:
-		d.type = INT;
-		d.u.i = movie->getCast()->getCastSize() + (movie->_sharedCast ? movie->_sharedCast->getCastSize() : 0);
+		d = (int)(movie->getCast()->getCastSize() + (movie->_sharedCast ? movie->_sharedCast->getCastSize() : 0));
 		break;
 	case kTheCenterStage:
-		d.type = INT;
-		d.u.i = g_director->_centerStage;
+		d = g_director->_centerStage;
 		break;
 	case kTheCheckBoxAccess:
-		d.type = INT;
-		d.u.i = g_director->getCurrentMovie()->_checkBoxAccess;
+		d = movie->_checkBoxAccess;
 		break;
 	case kTheCheckBoxType:
-		d.type = INT;
-		d.u.i = g_director->getCurrentMovie()->_checkBoxType;
+		d = movie->_checkBoxType;
 		break;
 	case kTheChunk:
 		d = getTheChunk(id, field);
@@ -417,82 +413,66 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		d.type = POINT;
 		break;
 	case kTheClickOn:
-		d.type = INT;
-		d.u.i = movie->_currentClickOnSpriteId;
+		d = (int)movie->_currentClickOnSpriteId;
 		break;
 	case kTheColorDepth:
 		// bpp. 1, 2, 4, 8, 32
-		d.type = INT;
-		d.u.i = _vm->_colorDepth;
+		d = _vm->_colorDepth;
 		break;
 	case kTheColorQD:
-		d.type = INT;
-		d.u.i = 1;
+		d = 1;
 		break;
 	case kTheCommandDown:
-		d.type = INT;
-		d.u.i = (movie->_keyFlags & Common::KBD_META) ? 1 : 0;
+		d = (movie->_keyFlags & Common::KBD_META) ? 1 : 0;
 		break;
 	case kTheControlDown:
-		d.type = INT;
-		d.u.i = (movie->_keyFlags & Common::KBD_CTRL) ? 1 : 0;
+		d = (movie->_keyFlags & Common::KBD_CTRL) ? 1 : 0;
 		break;
 	case kTheDate:
 		d = getTheDate(field);
 		break;
 	case kTheDoubleClick:
-		d.type = INT;
 		// Always measured against the last two clicks.
 		// 25 ticks seems to be the threshold for a double click.
-		d.u.i = (movie->_lastClickTime - movie->_lastClickTime2) <= 25 ? 1 : 0;
+		d = (movie->_lastClickTime - movie->_lastClickTime2) <= 25 ? 1 : 0;
 		break;
 	case kTheExitLock:
-		d.type = INT;
-		d.u.i = g_lingo->_exitLock;
+		d = g_lingo->_exitLock;
 		break;
 	case kTheField:
 		d = getTheField(id, field);
 		break;
 	case kTheFixStageSize:
-		d.type = INT;
-		d.u.i = (int)g_director->_fixStageSize;
+		d = (int)g_director->_fixStageSize;
 		break;
 	case kTheFloatPrecision:
-		d.type = INT;
-		d.u.i = _floatPrecision;
+		d = _floatPrecision;
 		break;
 	case kTheFrame:
-		d.type = INT;
-		d.u.i = score->getCurrentFrame();
+		d = (int)score->getCurrentFrame();
 		break;
 	case kTheFrameLabel:
 		d.type = STRING;
 		d.u.s = score->getFrameLabel(score->getCurrentFrame());
 		break;
 	case kTheFrameScript:
-		d.type = INT;
-		d.u.i = score->_frames[score->getCurrentFrame()]->_actionId.member;
+		d = score->_frames[score->getCurrentFrame()]->_actionId.member;
 		break;
 	case kTheFramePalette:
-		d.type = INT;
-		d.u.i = score->getCurrentPalette();
+		d = score->getCurrentPalette();
 		break;
 	case kTheFrameTempo:
-		d.type = INT;
-		d.u.i = score->_currentFrameRate;
+		d = score->_currentFrameRate;
 		break;
 	case kTheFreeBlock:
 	case kTheFreeBytes:
-		d.type = INT;
-		d.u.i = 32 * 1024 * 1024;	// Let's have 32 Mbytes
+		d = 32 * 1024 * 1024;	// Let's have 32 Mbytes
 		break;
 	case kTheFullColorPermit:
-		d.type = INT;
-		d.u.i = 1;					// We always allow it in ScummVM
+		d = 1;					// We always allow it in ScummVM
 		break;
 	case kTheImageDirect:
-		d.type = INT;
-		d.u.i = 1;					// We always allow it in ScummVM
+		d = 1;					// We always allow it in ScummVM
 		break;
 	case kTheItemDelimiter:
 		{
@@ -506,8 +486,7 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		d.u.s = new Common::String(movie->_key);
 		break;
 	case kTheKeyCode:
-		d.type = INT;
-		d.u.i = movie->_keyCode;
+		d = movie->_keyCode;
 		break;
 	case kTheKeyDownScript:
 		d.type = STRING;
@@ -528,24 +507,19 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		d.u.s = score->getLabelList();
 		break;
 	case kTheLastClick:
-		d.type = INT;
-		d.u.i = _vm->getMacTicks() - movie->_lastClickTime;
+		d = (int)(_vm->getMacTicks() - movie->_lastClickTime);
 		break;
 	case kTheLastEvent:
-		d.type = INT;
-		d.u.i = _vm->getMacTicks() - movie->_lastEventTime;
+		d = (int)(_vm->getMacTicks() - movie->_lastEventTime);
 		break;
 	case kTheLastFrame:
-		d.type = INT;
-		d.u.i = score->_frames.size() - 1;
+		d = (int)score->_frames.size() - 1;
 		break;
 	case kTheLastKey:
-		d.type = INT;
-		d.u.i = _vm->getMacTicks() - movie->_lastKeyTime;
+		d = (int)(_vm->getMacTicks() - movie->_lastKeyTime);
 		break;
 	case kTheLastRoll:
-		d.type = INT;
-		d.u.i = _vm->getMacTicks() - movie->_lastRollTime;
+		d = (int)(_vm->getMacTicks() - movie->_lastRollTime);
 		break;
 	case kTheMachineType:
 		// These are actually coming from Gestalt machineType
@@ -590,16 +564,13 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		// 73 - Power Macintosh 6100/60	D5
 		// 76 - Macintosh Quadra 840av	D4
 		// 256 - IBM PC-type machine	D3
-		d.type = INT;
-		d.u.i = _vm->_machineType;
+		d = _vm->_machineType;
 		break;
 	case kTheMaxInteger:
-		d.type = INT;
-		d.u.i = 2147483647; // (2^31)-1 [max 32bit signed integer]
+		d = 2147483647; // (2^31)-1 [max 32bit signed integer]
 		break;
 	case kTheMemorySize:
-		d.type = INT;
-		d.u.i = 32 * 1024 * 1024;	// Let's have 32 Mbytes
+		d = 32 * 1024 * 1024;	// Let's have 32 Mbytes
 		break;
 	case kTheMenu:
 		d.type = STRING;
@@ -631,12 +602,10 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 
 		switch (field) {
 		case kTheCheckMark:
-			d.type = INT;
-			d.u.i = g_director->_wm->getMenuItemCheckMark(menuItem);
+			d = g_director->_wm->getMenuItemCheckMark(menuItem);
 			break;
 		case kTheEnabled:
-			d.type = INT;
-			d.u.i = g_director->_wm->getMenuItemEnabled(menuItem);
+			d = g_director->_wm->getMenuItemEnabled(menuItem);
 			break;
 		case kTheName:
 			d.type = STRING;
@@ -644,8 +613,7 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 			*(d.u.s) = g_director->_wm->getMenuItemName(menuItem);
 			break;
 		case kTheScript:
-			d.type = INT;
-			d.u.i = g_director->_wm->getMenuItemAction(menuItem);
+			d = g_director->_wm->getMenuItemAction(menuItem);
 			break;
 		default:
 			warning("Lingo::getTheEntity(): Unprocessed setting field \"%s\" of entity %s", field2str(field), entity2str(entity));
@@ -653,22 +621,19 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		}
 		break;
 	case kTheMenuItems:
-		d.type = INT;
-		d.u.i = getMenuItemsNum(id);
+		d = getMenuItemsNum(id);
 		break;
 	case kTheMenus:
-		d.type = INT;
-		d.u.i = getMenuNum();
+		d = getMenuNum();
 		break;
 	case kTheMouseCast:
 		{
 			// TODO: How is this handled with multiple casts in D5?
 			Common::Point pos = g_director->getCurrentWindow()->getMousePos();
 			uint16 spriteId = score->getSpriteIDFromPos(pos);
-			d.type = INT;
-			d.u.i = score->getSpriteById(spriteId)->_castId.member;
+			d = score->getSpriteById(spriteId)->_castId.member;
 			if (d.u.i == 0)
-				d.u.i = -1;
+				d = -1;
 		}
 		break;
 	case kTheMouseChar:
@@ -677,13 +642,11 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 			Common::Point pos = g_director->getCurrentWindow()->getMousePos();
 			uint16 spriteId = score->getSpriteIDFromPos(pos);
 			Channel *ch = score->getChannelById(spriteId);
-			d.u.i = ch->getMouseChar(pos.x, pos.y);
-			d.type = INT;
+			d = ch->getMouseChar(pos.x, pos.y);
 		}
 		break;
 	case kTheMouseDown:
-		d.type = INT;
-		d.u.i = g_system->getEventManager()->getButtonState() & (1 << Common::MOUSE_BUTTON_LEFT | 1 << Common::MOUSE_BUTTON_RIGHT) ? 1 : 0;
+		d = g_system->getEventManager()->getButtonState() & (1 << Common::MOUSE_BUTTON_LEFT | 1 << Common::MOUSE_BUTTON_RIGHT) ? 1 : 0;
 		break;
 	case kTheMouseDownScript:
 		d.type = STRING;
@@ -693,16 +656,14 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 			d.u.s = new Common::String();
 		break;
 	case kTheMouseH:
-		d.type = INT;
-		d.u.i = g_director->getCurrentWindow()->getMousePos().x;
+		d = g_director->getCurrentWindow()->getMousePos().x;
 		break;
 	case kTheMouseItem:
 		{
 			Common::Point pos = g_director->getCurrentWindow()->getMousePos();
 			uint16 spriteId = score->getSpriteIDFromPos(pos);
 			Channel *ch = score->getChannelById(spriteId);
-			d.u.i = ch->getMouseItem(pos.x, pos.y);
-			d.type = INT;
+			d = ch->getMouseItem(pos.x, pos.y);
 		}
 		break;
 	case kTheMouseLine:
@@ -710,13 +671,11 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 			Common::Point pos = g_director->getCurrentWindow()->getMousePos();
 			uint16 spriteId = score->getSpriteIDFromPos(pos);
 			Channel *ch = score->getChannelById(spriteId);
-			d.u.i = ch->getMouseLine(pos.x, pos.y);
-			d.type = INT;
+			d = ch->getMouseLine(pos.x, pos.y);
 		}
 		break;
 	case kTheMouseUp:
-		d.type = INT;
-		d.u.i = g_system->getEventManager()->getButtonState() & (1 << Common::MOUSE_BUTTON_LEFT | 1 << Common::MOUSE_BUTTON_RIGHT) ? 0 : 1;
+		d = g_system->getEventManager()->getButtonState() & (1 << Common::MOUSE_BUTTON_LEFT | 1 << Common::MOUSE_BUTTON_RIGHT) ? 0 : 1;
 		break;
 	case kTheMouseUpScript:
 		d.type = STRING;
@@ -726,8 +685,7 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 			d.u.s = new Common::String();
 		break;
 	case kTheMouseV:
-		d.type = INT;
-		d.u.i = g_director->getCurrentWindow()->getMousePos().y;
+		d = g_director->getCurrentWindow()->getMousePos().y;
 		break;
 	case kTheMouseWord:
 		{
@@ -735,8 +693,7 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 			Common::Point pos = g_director->getCurrentWindow()->getMousePos();
 			uint16 spriteId = score->getSpriteIDFromPos(pos);
 			Channel *ch = score->getChannelById(spriteId);
-			d.u.i = ch->getMouseWord(pos.x, pos.y);
-			d.type = INT;
+			d = ch->getMouseWord(pos.x, pos.y);
 		}
 		break;
 	case kTheMovie:
@@ -745,78 +702,65 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		d.u.s = new Common::String(movie->getMacName());
 		break;
 	case kTheMovieFileFreeSize:
-		d.type = INT;
-		d.u.i = 0;	// Let's pretend the movie is compactified
+		d = 0;	// Let's pretend the movie is compactified
 		break;
 	case kTheMovieFileSize:
-		d.type = INT;
-		d.u.i = movie->getArchive()->getFileSize();
+		d = movie->getArchive()->getFileSize();
 		break;
 	case kTheMoviePath:
 	case kThePathName:
 		d.type = STRING;
-		d.u.s = new Common::String(_vm->getCurrentPath());
+		d.u.s = new Common::String(_vm->getCurrentAbsolutePath());
 		break;
 	case kTheMultiSound:
 		// We always support multiple sound channels!
-		d.type = INT;
-		d.u.i = 1;
+		d = 1;
 		break;
 	case kTheOptionDown:
-		d.type = INT;
-		d.u.i = (movie->_keyFlags & Common::KBD_ALT) ? 1 : 0;
+		d = (movie->_keyFlags & Common::KBD_ALT) ? 1 : 0;
 		break;
 	case kThePauseState:
-		d.type = INT;
-		d.u.i = (int) g_director->_playbackPaused;
+		d = (int) g_director->_playbackPaused;
 		break;
 	case kThePerFrameHook:
 		d = _perFrameHook;
 		break;
 	case kThePreloadEventAbort:
-		d.type = INT;
-		d.u.i = g_lingo->_preLoadEventAbort;
+		d = g_lingo->_preLoadEventAbort;
 		break;
 	case kThePreLoadRAM:
-		d.u.i = 0;		// We always have unlimited RAM
+		d = 0;		// We always have unlimited RAM
 		break;
 	case kThePi:
-		d.type = FLOAT;
-		d.u.f = M_PI;
+		d = M_PI;
 		break;
 	case kTheQuickTimePresent:
 		// QuickTime is always present for scummvm
-		d.type = INT;
-		d.u.i = 1;
+		d = 1;
 		break;
 	case kTheRandomSeed:
-		d.type = INT;
-		d.u.i = g_director->_rnd.getSeed();
+		d = (int)g_director->_rnd.getSeed();
 		break;
 	case kTheResult:
 		d = g_lingo->_theResult;
 		break;
 	case kTheRightMouseDown:
-		d.type = INT;
-		d.u.i = g_system->getEventManager()->getButtonState() & (1 << Common::MOUSE_BUTTON_RIGHT) ? 1 : 0;
+		d = g_system->getEventManager()->getButtonState() & (1 << Common::MOUSE_BUTTON_RIGHT) ? 1 : 0;
 		break;
 	case kTheRightMouseUp:
-		d.type = INT;
-		d.u.i = g_system->getEventManager()->getButtonState() & (1 << Common::MOUSE_BUTTON_RIGHT) ? 0 : 1;
+		d = g_system->getEventManager()->getButtonState() & (1 << Common::MOUSE_BUTTON_RIGHT) ? 0 : 1;
 		break;
 	case kTheRomanLingo:
-		d.type = INT;
-		d.u.i = g_lingo->_romanLingo;
+		d = g_lingo->_romanLingo;
 		warning("BUILDBOT: the romanLingo is get, value is %d", g_lingo->_romanLingo);
 		break;
 	case kTheScummvmVersion:
-		d.type = INT;
-		d.u.i = _vm->getVersion();
+		d = _vm->getVersion();
 		break;
 	case kTheSearchCurrentFolder:
 		//We always allow searching in current folder
 		warning("BUILDBOT: SearchCurrentFolder is queried");
-		d = Datum(1);
+		d = 1;
 		break;
 	case kTheSearchPath:
 		d = g_lingo->_searchPath;
@@ -837,18 +781,15 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 			Channel *channel = score->_channels[movie->_currentEditableTextChannel];
 
 			if (channel->_widget) {
-				d.type = INT;
-				d.u.i = ((Graphics::MacText *)channel->_widget)->getSelectionIndex(entity == kTheSelStart);
+				d = (int)((Graphics::MacText *)channel->_widget)->getSelectionIndex(entity == kTheSelStart);
 			}
 		}
 		break;
 	case kTheShiftDown:
-		d.type = INT;
-		d.u.i = (movie->_keyFlags & Common::KBD_SHIFT) ? 1 : 0;
+		d = (movie->_keyFlags & Common::KBD_SHIFT) ? 1 : 0;
 		break;
 	case kTheSoundEnabled:
-		d.type = INT;
-		d.u.i = _vm->getCurrentWindow()->getSoundManager()->getSoundEnabled();
+		d = _vm->getCurrentWindow()->getSoundManager()->getSoundEnabled();
 		break;
 	case kTheSoundEntity:
 		{
@@ -857,8 +798,7 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 				{
 					SoundChannel *chan = _vm->getCurrentWindow()->getSoundManager()->getChannel(id.asInt());
 					if (chan) {
-						d.type = INT;
-						d.u.i = (int)chan->volume;
+						d = (int)chan->volume;
 					}
 				}
 				break;
@@ -870,8 +810,7 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		break;
 	case kTheSoundLevel:
 		// getting sound level of channel 1, maybe need to be amended in higher version
-		d.type = INT;
-		d.u.i = _vm->getCurrentWindow()->getSoundManager()->getSoundLevel(1);
+		d = _vm->getCurrentWindow()->getSoundManager()->getSoundLevel(1);
 		break;
 	case kTheSprite:
 		d = getTheSprite(id, field);
@@ -880,59 +819,47 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 		d = _vm->getStage();
 		break;
 	case kTheStageBottom:
-		d.type = INT;
-		d.u.i = _vm->getCurrentWindow()->getSurface()->h;
+		d = _vm->getCurrentWindow()->getSurface()->h;
 		break;
 	case kTheStageColor:
-		d.type = INT;
 		// TODO: Provide proper reverse transform for non-indexed color
-		d.u.i = (int)g_director->transformColor(g_director->getCurrentWindow()->getStageColor());
+		d = (int)g_director->transformColor(g_director->getCurrentWindow()->getStageColor());
 		break;
 	case kTheStageLeft:
-		d.type = INT;
-		d.u.i = 0;
+		d = 0;
 		break;
 	case kTheStageRight:
-		d.type = INT;
-		d.u.i = _vm->getCurrentWindow()->getSurface()->w;
+		d = _vm->getCurrentWindow()->getSurface()->w;
 		break;
 	case kTheStageTop:
-		d.type = INT;
-		d.u.i = 0;
+		d = 0;
 		break;
 	case kTheStillDown:
-		d.type = INT;
-		d.u.i = _vm->_wm->_mouseDown;
+		d = _vm->_wm->_mouseDown;
 		break;
 	case kTheSwitchColorDepth:
 		getTheEntitySTUB(kTheSwitchColorDepth);
 		break;
 	case kTheTicks:
-		d.type = INT;
-		d.u.i = _vm->getMacTicks();
+		d = (int)_vm->getMacTicks();
 		break;
 	case kTheTime:
 		d = getTheTime(field);
 		break;
 	case kTheTimeoutKeyDown:
-		d.type = INT;
-		d.u.i = g_director->getCurrentMovie()->_timeOutKeyDown;
+		d= movie->_timeOutKeyDown;
 		break;
 	case kTheTimeoutLapsed:
-		d.type = INT;
-		d.u.i = _vm->getMacTicks() - g_director->getCurrentMovie()->_lastTimeOut;
+		d = (int)(_vm->getMacTicks() - movie->_lastTimeOut);
 		break;
 	case kTheTimeoutLength:
-		d.type = INT;
-		d.u.i = g_director->getCurrentMovie()->_timeOutLength;
+		d = (int)movie->_timeOutLength;
 		break;
 	case kTheTimeoutMouse:
-		d.type = INT;
-		d.u.i = g_director->getCurrentMovie()->_timeOutMouse;
+		d = movie->_timeOutMouse;
 		break;
 	case kTheTimeoutPlay:
-		d.type = INT;
-		d.u.i = g_director->getCurrentMovie()->_timeOutPlay;
+		d = movie->_timeOutPlay;
 		break;
 	case kTheTimeoutScript:
 		d.type = STRING;
@@ -942,24 +869,20 @@ Datum Lingo::getTheEntity(int entity, Datum &id, int field) {
 			d.u.s = new Common::String();
 		break;
 	case kTheTimer:
-		d.type = INT;
-		d.u.i = _vm->getMacTicks() - movie->_lastTimerReset;
+		d = (int)(_vm->getMacTicks() - movie->_lastTimerReset);
 		break;
 	case kTheTrace:
-		d.type = INT;
-		d.u.i = (int) g_lingo->_trace;
+		d = (int) g_lingo->_trace;
 		break;
 	case kTheTraceLoad:
-		d.type = INT;
-		d.u.i = g_lingo->_traceLoad;
+		d = g_lingo->_traceLoad;
 		break;
 	case kTheTraceLogFile:
 		d.type = STRING;
 		d.u.s = new Common::String(g_director->_traceLogFile);
 		break;
 	case kTheUpdateMovieEnabled:
-		d.type = INT;
-		d.u.i = g_lingo->_updateMovieEnabled;
+		d = g_lingo->_updateMovieEnabled;
 		break;
 	case kTheWindow:
 		g_lingo->push(id);
@@ -996,7 +919,7 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 		g_lingo->_actorList = d;
 		break;
 	case kTheBeepOn:
-		g_director->getCurrentMovie()->_isBeepOn = (bool)d.u.i;
+		movie->_isBeepOn = (bool)d.u.i;
 		break;
 	case kTheButtonStyle:
 		if (d.asInt())
@@ -1011,10 +934,10 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 		g_director->_centerStage = d.asInt();
 		break;
 	case kTheCheckBoxAccess:
-		g_director->getCurrentMovie()->_checkBoxAccess = d.asInt();
+		movie->_checkBoxAccess = d.asInt();
 		break;
 	case kTheCheckBoxType:
-		g_director->getCurrentMovie()->_checkBoxType = d.asInt();
+		movie->_checkBoxType = d.asInt();
 		break;
 	case kTheChunk:
 		setTheChunk(id, field, d);
@@ -1031,7 +954,7 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 	case kTheFixStageSize:
 		g_director->_fixStageSize = (bool)d.u.i;
 		if (d.u.i) {
-			g_director->_fixStageRect = g_director->getCurrentMovie()->_movieRect;
+			g_director->_fixStageRect = movie->_movieRect;
 		}
 		break;
 	case kTheField:
@@ -1112,7 +1035,7 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 			break;
 		case kTheScript:
 		{
-			LingoArchive *mainArchive = g_director->getCurrentMovie()->getMainLingoArch();
+			LingoArchive *mainArchive = movie->getMainLingoArch();
 			int commandId = 100;
 			while (mainArchive->getScriptContext(kEventScript, commandId))
 				commandId++;
@@ -1157,7 +1080,7 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 		warning("BUILDBOT: Trying to set SearchCurrentFolder lingo property");
 		break;
 	case kTheSelEnd:
-		g_director->getCurrentMovie()->_selEnd = d.asInt();
+		movie->_selEnd = d.asInt();
 		if (movie->_currentEditableTextChannel != 0) {
 			Channel *channel = score->getChannelById(movie->_currentEditableTextChannel);
 
@@ -1166,7 +1089,7 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 		}
 		break;
 	case kTheSelStart:
-		g_director->getCurrentMovie()->_selStart = d.asInt();
+		movie->_selStart = d.asInt();
 		if (movie->_currentEditableTextChannel != 0) {
 			Channel *channel = score->getChannelById(movie->_currentEditableTextChannel);
 
@@ -1215,7 +1138,7 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 		setTheEntitySTUB(kTheSwitchColorDepth);
 		break;
 	case kTheTimeoutKeyDown:
-		g_director->getCurrentMovie()->_timeOutKeyDown = d.asInt();
+		movie->_timeOutKeyDown = d.asInt();
 		break;
 	case kTheTimeoutLapsed:
 		// timeOutLapsed can be set in D4, but can't in D3. see D3.1 interactivity manual p312 and D4 dictionary p296.
@@ -1227,13 +1150,13 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 		}
 		break;
 	case kTheTimeoutLength:
-		g_director->getCurrentMovie()->_timeOutLength = d.asInt();
+		movie->_timeOutLength = d.asInt();
 		break;
 	case kTheTimeoutMouse:
-		g_director->getCurrentMovie()->_timeOutMouse = d.asInt();
+		movie->_timeOutMouse = d.asInt();
 		break;
 	case kTheTimeoutPlay:
-		g_director->getCurrentMovie()->_timeOutPlay = d.asInt();
+		movie->_timeOutPlay = d.asInt();
 		break;
 	case kTheTimeoutScript:
 		movie->setPrimaryEventHandler(kEventTimeout, d.asString());
@@ -1282,6 +1205,7 @@ void Lingo::setTheEntity(int entity, Datum &id, int field, Datum &d) {
 	default:
 		warning("Lingo::setTheEntity(): Unprocessed setting field \"%s\" of entity %s", field2str(field), entity2str(entity));
 	}
+	g_debugger->entityWriteHook(entity, field);
 }
 
 int Lingo::getMenuNum() {
@@ -1334,50 +1258,49 @@ Datum Lingo::getTheSprite(Datum &id1, int field) {
 	if (!sprite)
 		return d;
 
-	d.type = INT;
 
 	switch (field) {
 	case kTheBackColor:
 		// TODO: Provide proper reverse transform for non-indexed color
-		d.u.i = (int)g_director->transformColor(sprite->_backColor);
+		d = (int)g_director->transformColor(sprite->_backColor);
 		break;
 	case kTheBlend:
-		d.u.i = sprite->_blend;
+		d = sprite->_blend;
 		break;
 	case kTheBottom:
-		d.u.i = channel->getBbox().bottom;
+		d = channel->getBbox().bottom;
 		break;
 	case kTheCastNum:
 		// TODO: How is this handled with multiple casts in D5?
-		d.u.i = sprite->_castId.member;
+		d = sprite->_castId.member;
 		break;
 	case kTheConstraint:
-		d.u.i = channel->_constraint;
+		d = (int)channel->_constraint;
 		break;
 	case kTheCursor:
 		d = channel->_cursor._cursorResId;
 		break;
 	case kTheEditableText:
-		d.u.i = sprite->_editable;
+		d = sprite->_editable;
 		break;
 	case kTheForeColor:
 		// TODO: Provide proper reverse transform for non-indexed color
-		d.u.i = (int)g_director->transformColor(sprite->_foreColor);
+		d = (int)g_director->transformColor(sprite->_foreColor);
 		break;
 	case kTheHeight:
-		d.u.i = channel->_height;
+		d = channel->_height;
 		break;
 	case kTheImmediate:
-		d.u.i = sprite->_immediate;
+		d = sprite->_immediate;
 		break;
 	case kTheInk:
-		d.u.i = sprite->_ink;
+		d = sprite->_ink;
 		break;
 	case kTheLeft:
-		d.u.i = channel->getBbox().left;
+		d = channel->getBbox().left;
 		break;
 	case kTheLineSize:
-		d.u.i = sprite->_thickness & 0x3;
+		d = sprite->_thickness & 0x3;
 		break;
 	case kTheLoc:
 		d.type = POINT;
@@ -1386,28 +1309,27 @@ Datum Lingo::getTheSprite(Datum &id1, int field) {
 		d.u.farr->arr.push_back(channel->_currentPoint.y);
 		break;
 	case kTheLocH:
-		d.u.i = channel->_currentPoint.x;
+		d = channel->_currentPoint.x;
 		break;
 	case kTheLocV:
-		d.u.i = channel->_currentPoint.y;
+		d = channel->_currentPoint.y;
 		break;
 	case kTheMoveableSprite:
-		d.u.i = sprite->_moveable;
+		d = sprite->_moveable;
 		break;
 	case kTheMovieRate:
-		d.type = FLOAT;
-		d.u.f = channel->_movieRate;
+		d = channel->_movieRate;
 		if (debugChannelSet(-1, kDebugEndVideo))
 			d.u.f = 0.0;
 		break;
 	case kTheMovieTime:
-		d.u.i = channel->_movieTime;
+		d = channel->_movieTime;
 		break;
 	case kThePattern:
-		d.u.i = sprite->getPattern();
+		d = sprite->getPattern();
 		break;
 	case kThePuppet:
-		d.u.i = sprite->_puppet;
+		d = sprite->_puppet;
 		break;
 	case kTheRect:
 		// let compiler to optimize this
@@ -1419,43 +1341,42 @@ Datum Lingo::getTheSprite(Datum &id1, int field) {
 		d.u.farr->arr.push_back(channel->getBbox().bottom);
 		break;
 	case kTheRight:
-		d.u.i = channel->getBbox().right;
+		d = channel->getBbox().right;
 		break;
 	case kTheScoreColor:
 		//Check the last 3 bits of the _colorcode byte as value lies in 0 to 5
-		d.u.i = (int)(sprite->_colorcode & 0x7);
+		d = (int)(sprite->_colorcode & 0x7);
 		break;
 	case kTheScriptNum:
-		d.type = INT;
-		d.u.i = sprite->_scriptId.member;
+		d = sprite->_scriptId.member;
 		break;
 	case kTheStartTime:
-		d.u.i = channel->_startTime;
+		d = channel->_startTime;
 		break;
 	case kTheStopTime:
-		d.u.i = channel->_stopTime;
+		d = channel->_stopTime;
 		break;
 	case kTheStretch:
-		d.u.i = sprite->_stretch;
+		d = sprite->_stretch;
 		break;
 	case kTheTop:
-		d.u.i = channel->getBbox().top;
+		d = channel->getBbox().top;
 		break;
 	case kTheTrails:
-		d.u.i = sprite->_trails;
+		d = sprite->_trails;
 		break;
 	case kTheType:
-		d.u.i = sprite->_spriteType;
+		d = sprite->_spriteType;
 		break;
 	case kTheVisibility:
 	case kTheVisible:
-		d.u.i = (channel->_visible ? 1 : 0);
+		d = (channel->_visible ? 1 : 0);
 		break;
 	case kTheVolume:
-		d.u.i = sprite->_volume;
+		d = sprite->_volume;
 		break;
 	case kTheWidth:
-		d.u.i = channel->_width;
+		d = channel->_width;
 		break;
 	default:
 		warning("Lingo::getTheSprite(): Unprocessed getting field \"%s\" of sprite", field2str(field));
@@ -1466,18 +1387,12 @@ Datum Lingo::getTheSprite(Datum &id1, int field) {
 }
 
 void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
-	int id = 0;
-	Score *score = _vm->getCurrentMovie()->getScore();
+	int id = id1.asInt();
+	Movie *movie = _vm->getCurrentMovie();
+	Score *score = movie->getScore();
 
 	if (!score) {
 		warning("Lingo::setTheSprite(): The sprite %d field \"%s\" setting over non-active score", id, field2str(field));
-		return;
-	}
-
-	if (id1.type == INT) {
-		id = id1.u.i;
-	} else {
-		warning("Lingo::setTheSprite(): Unknown the sprite id type: %s", id1.type2str());
 		return;
 	}
 
@@ -1511,7 +1426,7 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
 	case kTheCastNum:
 		{
 			CastMemberID castId = d.asMemberID();
-			CastMember *castMember = g_director->getCurrentMovie()->getCastMember(castId);
+			CastMember *castMember = movie->getCastMember(castId);
 
 			if (castMember && castMember->_type == kCastDigitalVideo) {
 				Common::String path = castMember->getCast()->getVideoPath(castId.member);
@@ -1521,13 +1436,13 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
 					// b_updateStage needs to have _videoPlayback set to render video
 					// in the regular case Score::renderSprites sets it.
 					// However Score::renderSprites is not in the current code path.
-					g_director->getCurrentMovie()->_videoPlayback = true;
+					movie->_videoPlayback = true;
 				}
 			}
 
 			if (castId != sprite->_castId) {
 				if (!sprite->_trails) {
-					g_director->getCurrentMovie()->getWindow()->addDirtyRect(channel->getBbox());
+					movie->getWindow()->addDirtyRect(channel->getBbox());
 					channel->_dirty = true;
 				}
 				channel->setCast(castId);
@@ -1601,7 +1516,7 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
 		break;
 	case kTheLoc:
 		if (channel->_currentPoint.x != d.asPoint().x || channel->_currentPoint.y != d.asPoint().y) {
-			g_director->getCurrentMovie()->getWindow()->addDirtyRect(channel->getBbox());
+			movie->getWindow()->addDirtyRect(channel->getBbox());
 			channel->_dirty = true;
 		}
 
@@ -1613,7 +1528,7 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
 			// adding the dirtyRect only when the trails is false. Other changes which will add dirtyRect may also apply this patch
 			// this is for fixing the bug in jman-win. Currently, i've only patched the LocH, LocV and castNum since those are the only ones used in jman
 			if (!channel->_sprite->_trails) {
-				g_director->getCurrentMovie()->getWindow()->addDirtyRect(channel->getBbox());
+				movie->getWindow()->addDirtyRect(channel->getBbox());
 				channel->_dirty = true;
 			}
 			channel->_currentPoint.x = d.asInt();
@@ -1622,7 +1537,7 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
 	case kTheLocV:
 		if (d.asInt() != channel->_currentPoint.y) {
 			if (!channel->_sprite->_trails) {
-				g_director->getCurrentMovie()->getWindow()->addDirtyRect(channel->getBbox());
+				movie->getWindow()->addDirtyRect(channel->getBbox());
 				channel->_dirty = true;
 			}
 			channel->_currentPoint.y = d.asInt();
@@ -1723,8 +1638,8 @@ void Lingo::setTheSprite(Datum &id1, int field, Datum &d) {
 		warning("Lingo::setTheSprite(): Unprocessed setting field \"%s\" of sprite", field2str(field));
 	}
 
-	if (channel->_dirty && g_director->getCurrentMovie())
-		g_director->getCurrentMovie()->getWindow()->addDirtyRect(channel->getBbox());
+	if (channel->_dirty)
+		movie->getWindow()->addDirtyRect(channel->getBbox());
 }
 
 Datum Lingo::getTheCast(Datum &id1, int field) {

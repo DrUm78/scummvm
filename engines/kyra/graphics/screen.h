@@ -798,6 +798,7 @@ protected:
 	template<bool noXor> static void wrapped_decodeFrameDeltaPage(uint8 *dst, const uint8 *src, const int pitch);
 
 	uint8 *_pagePtrs[16];
+	const uint8 *_pagePtrsBuff;
 	uint8 *_sjisOverlayPtrs[SCREEN_OVLS_NUM];
 	uint8 _pageMapping[SCREEN_PAGE_NUM];
 
@@ -870,16 +871,20 @@ protected:
 	KyraEngine_v1 *_vm;
 
 	// shape
+	typedef void (Screen::*DsPlotFunc)(uint8*, uint8);
+	typedef int (Screen::*DsMarginSkipFunc)(uint8*&, const uint8*&, int&);
+	typedef void (Screen::*DsLineFunc)(uint8*&, const uint8*&, const DsPlotFunc, int&, int16);
+
 	int drawShapeMarginNoScaleUpwind(uint8 *&dst, const uint8 *&src, int &cnt);
 	int drawShapeMarginNoScaleDownwind(uint8 *&dst, const uint8 *&src, int &cnt);
 	int drawShapeMarginScaleUpwind(uint8 *&dst, const uint8 *&src, int &cnt);
 	int drawShapeMarginScaleDownwind(uint8 *&dst, const uint8 *&src, int &cnt);
 	int drawShapeSkipScaleUpwind(uint8 *&dst, const uint8 *&src, int &cnt);
 	int drawShapeSkipScaleDownwind(uint8 *&dst, const uint8 *&src, int &cnt);
-	void drawShapeProcessLineNoScaleUpwind(uint8 *&dst, const uint8 *&src, int &cnt, int16 scaleState);
-	void drawShapeProcessLineNoScaleDownwind(uint8 *&dst, const uint8 *&src, int &cnt, int16 scaleState);
-	void drawShapeProcessLineScaleUpwind(uint8 *&dst, const uint8 *&src, int &cnt, int16 scaleState);
-	void drawShapeProcessLineScaleDownwind(uint8 *&dst, const uint8 *&src, int &cnt, int16 scaleState);
+	void drawShapeProcessLineNoScaleUpwind(uint8 *&dst, const uint8 *&src, const DsPlotFunc plot, int &cnt, int16);
+	void drawShapeProcessLineNoScaleDownwind(uint8 *&dst, const uint8 *&src, const DsPlotFunc plot, int &cnt, int16);
+	void drawShapeProcessLineScaleUpwind(uint8 *&dst, const uint8 *&src, const DsPlotFunc plot, int &cnt, int16 scaleState);
+	void drawShapeProcessLineScaleDownwind(uint8 *&dst, const uint8 *&src, const DsPlotFunc plot, int &cnt, int16 scaleState);
 
 	void drawShapePlotType0(uint8 *dst, uint8 cmd);
 	void drawShapePlotType1(uint8 *dst, uint8 cmd);
@@ -900,15 +905,6 @@ protected:
 	void drawShapePlotType37(uint8 *dst, uint8 cmd);
 	void drawShapePlotType48(uint8 *dst, uint8 cmd);
 	void drawShapePlotType52(uint8 *dst, uint8 cmd);
-
-	typedef int (Screen::*DsMarginSkipFunc)(uint8 *&dst, const uint8 *&src, int &cnt);
-	typedef void (Screen::*DsLineFunc)(uint8 *&dst, const uint8 *&src, int &cnt, int16 scaleState);
-	typedef void (Screen::*DsPlotFunc)(uint8 *dst, uint8 cmd);
-
-	DsMarginSkipFunc _dsProcessMargin;
-	DsMarginSkipFunc _dsScaleSkip;
-	DsLineFunc _dsProcessLine;
-	DsPlotFunc _dsPlot;
 
 	const uint8 *_dsShapeFadingTable;
 	int _dsShapeFadingLevel;

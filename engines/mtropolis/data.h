@@ -95,7 +95,7 @@ enum DataObjectType {
 
 	kGraphicElement							= 0x8,
 	kMovieElement							= 0x5,
-	kMToonElement							= 0x6,		// NYI
+	kMToonElement							= 0x6,
 	kImageElement							= 0x7,
 	kSoundElement							= 0xa,
 	kTextLabelElement						= 0x15,
@@ -105,12 +105,12 @@ enum DataObjectType {
 	kReturnModifier							= 0x140,	// NYI
 	kSoundEffectModifier					= 0x1a4,
 	kDragMotionModifier						= 0x208,
-	kPathMotionModifierV1					= 0x21c,	// NYI - Obsolete version
+	kPathMotionModifierV1					= 0x21c,
 	kPathMotionModifierV2					= 0x21b,
 	kVectorMotionModifier					= 0x226,
 	kSceneTransitionModifier				= 0x26c,
 	kElementTransitionModifier				= 0x276,
-	kSharedSceneModifier					= 0x29a,	// NYI
+	kSharedSceneModifier					= 0x29a,
 	kIfMessengerModifier					= 0x2bc,
 	kBehaviorModifier						= 0x2c6,
 	kMessengerModifier						= 0x2da,
@@ -121,11 +121,12 @@ enum DataObjectType {
 	kKeyboardMessengerModifier				= 0x302,
 	kTextStyleModifier						= 0x32a,
 	kGraphicModifier						= 0x334,
-	kImageEffectModifier					= 0x384,	// NYI
+	kImageEffectModifier					= 0x384,
 	kMiniscriptModifier						= 0x3c0,
 	kCursorModifierV1						= 0x3ca,	// NYI - Obsolete version
 	kGradientModifier						= 0x4b0,	// NYI
-	kColorTableModifier						= 0x4c4,	// NYI
+	kColorTableModifier						= 0x4c4,
+	kSoundFadeModifier						= 0x4ce,
 	kSaveAndRestoreModifier					= 0x4d8,
 
 	kCompoundVariableModifier				= 0x2c7,
@@ -136,6 +137,7 @@ enum DataObjectType {
 	kPointVariableModifier					= 0x326,
 	kFloatingPointVariableModifier			= 0x328,
 	kStringVariableModifier					= 0x329,
+	kObjectReferenceVariableModifierV1		= 0x33e,
 	kDebris									= 0xfffffffe,	// Deleted modifier in alias list
 	kPlugInModifier							= 0xffffffff,
 
@@ -214,8 +216,9 @@ private:
 };
 
 struct Rect {
+	Rect();
+
 	bool load(DataReader &reader);
-	static Rect createDefault();
 
 	bool toScummVMRect(Common::Rect &outRect) const;
 	bool toScummVMRectUnchecked(Common::Rect &outRect) const;
@@ -227,18 +230,19 @@ struct Rect {
 };
 
 struct Point {
+	Point();
+
 	bool load(DataReader &reader);
 	bool toScummVMPoint(Common::Point &outPoint) const;
-
-	static Point createDefault();
 
 	int16 x;
 	int16 y;
 };
 
 struct Event {
+	Event();
+
 	bool load(DataReader &reader);
-	static Event createDefault();
 
 	uint32 eventID;
 	uint32 eventInfo;
@@ -255,8 +259,9 @@ struct ColorRGB16 {
 };
 
 struct IntRange {
+	IntRange();
+
 	bool load(DataReader &reader);
-	static IntRange createDefault();
 
 	int32 min;
 	int32 max;
@@ -313,6 +318,8 @@ struct InternalTypeTaggedValue {
 	};
 
 	union ValueUnion {
+		ValueUnion();
+
 		uint8 asBool;
 		XPFloatPOD asFloat;
 		int32 asInteger;
@@ -320,9 +327,13 @@ struct InternalTypeTaggedValue {
 		VariableReference asVariableReference;
 		Label asLabel;
 		Point asPoint;
+
+		template<class T>
+		void constructField(T ValueUnion::*fieldPtr);
 	};
 
 	InternalTypeTaggedValue();
+	~InternalTypeTaggedValue();
 
 	uint16 type;
 	ValueUnion value;
@@ -346,6 +357,9 @@ struct PlugInTypeTaggedValue : public Common::NonCopyable {
 	};
 
 	union ValueUnion {
+		ValueUnion();
+		~ValueUnion();
+
 		int32 asInt;
 		Point asPoint;
 		IntRange asIntRange;
@@ -354,14 +368,21 @@ struct PlugInTypeTaggedValue : public Common::NonCopyable {
 		Event asEvent;
 		Label asLabel;
 		uint32 asVarRefGUID;
+		Common::String asString;
+
+		template<class T>
+		void constructField(T ValueUnion::*fieldPtr);
+
+		template<class T>
+		void destructField(T ValueUnion::*fieldPtr);
 	};
 
 	PlugInTypeTaggedValue();
+	~PlugInTypeTaggedValue();
 
 	uint16 type;
 	ValueUnion value;
 
-	Common::String str;
 	Common::Array<uint8> extraData;
 
 	bool load(DataReader &reader);
@@ -936,6 +957,33 @@ protected:
 	DataReadErrorCode load(DataReader &reader) override;
 };
 
+struct ColorTableModifier : public DataObject {
+	ColorTableModifier();
+
+	TypicalModifierHeader modHeader;
+	Event applyWhen;
+	uint32 unknown1;
+	uint8 unknown2[4];
+	uint32 assetID;
+
+protected:
+	DataReadErrorCode load(DataReader &reader) override;
+};
+
+struct SoundFadeModifier : public DataObject {
+	SoundFadeModifier();
+
+	TypicalModifierHeader modHeader;
+	uint8 unknown1[4];
+	Event enableWhen;
+	Event disableWhen;
+	uint16 fadeToVolume;
+	uint8 codedDuration[4];
+	uint8 unknown2[18];
+
+protected:
+	DataReadErrorCode load(DataReader &reader) override;
+};
 
 struct SaveAndRestoreModifier : public DataObject {
 	SaveAndRestoreModifier();
@@ -1030,6 +1078,8 @@ struct AliasModifier : public DataObject {
 
 	Common::String name;
 
+	bool haveGUID;
+
 protected:
 	DataReadErrorCode load(DataReader &reader) override;
 };
@@ -1075,17 +1125,10 @@ protected:
 	DataReadErrorCode load(DataReader &reader) override;
 };
 
-struct PathMotionModifierV2 : public DataObject {
-	struct PointDef {
-		PointDef();
+struct PathMotionModifier : public DataObject {
+	struct PointDefMessageSpec {
+		PointDefMessageSpec();
 
-		enum FrameFlags {
-			kFrameFlagPlaySequentially = 1,
-		};
-
-		Point point;
-		uint32 frame;
-		uint32 frameFlags;
 		uint32 messageFlags;
 		Event send;
 		uint16 unknown11;
@@ -1101,6 +1144,22 @@ struct PathMotionModifierV2 : public DataObject {
 		bool load(DataReader &reader);
 	};
 
+	struct PointDef {
+		PointDef();
+
+		enum FrameFlags {
+			kFrameFlagPlaySequentially = 1,
+		};
+
+		Point point;
+		uint32 frame;
+		uint32 frameFlags;
+
+		PointDefMessageSpec messageSpec;
+
+		bool load(DataReader &reader, bool haveMessageSpec);
+	};
+
 	enum Flags {
 		kFlagReverse = 0x00100000,
 		kFlagLoop = 0x10000000,
@@ -1108,7 +1167,7 @@ struct PathMotionModifierV2 : public DataObject {
 		kFlagStartAtBeginning = 0x08000000,
 	};
 
-	PathMotionModifierV2();
+	explicit PathMotionModifier(uint version);
 
 	TypicalModifierHeader modHeader;
 	uint32 flags;
@@ -1122,6 +1181,8 @@ struct PathMotionModifierV2 : public DataObject {
 	uint32 frameDurationTimes10Million;
 	uint8 unknown5[4];
 	uint32 unknown6;
+
+	bool havePointDefMessageSpecs;
 
 	Common::Array<PointDef> points;
 
@@ -1233,6 +1294,21 @@ struct ElementTransitionModifier : public DataObject {
 	uint16 unknown4;
 	uint16 steps;
 	uint16 rate;
+
+protected:
+	DataReadErrorCode load(DataReader &reader) override;
+};
+
+struct SharedSceneModifier : public DataObject {
+	SharedSceneModifier();
+
+	TypicalModifierHeader modHeader;
+
+	uint8 unknown1[4];
+	Event executeWhen;
+	uint32 sectionGUID;
+	uint32 subsectionGUID;
+	uint32 sceneGUID;
 
 protected:
 	DataReadErrorCode load(DataReader &reader) override;
@@ -1491,6 +1567,31 @@ protected:
 	DataReadErrorCode load(DataReader &reader) override;
 };
 
+struct ImageEffectModifier : public DataObject {
+	ImageEffectModifier();
+
+	enum Types {
+		kTypeInvert = 1,
+		kTypeSelectedBevels = 2,
+		kTypeDeselectedBevels = 3,
+		kTypeToneDown = 4,
+		kTypeToneUp = 5,
+	};
+
+	TypicalModifierHeader modHeader;
+
+	uint32 flags;
+	uint16 type;
+	Event applyWhen;
+	Event removeWhen;
+	uint16 bevelWidth;
+	uint16 toneAmount;
+	uint8 unknown2[2];
+
+protected:
+	DataReadErrorCode load(DataReader &reader) override;
+};
+
 struct CompoundVariableModifier : public DataObject {
 	CompoundVariableModifier();
 
@@ -1586,6 +1687,17 @@ struct StringVariableModifier : public DataObject {
 	uint32 lengthOfString;
 	uint8 unknown1[4];
 	Common::String value;
+
+protected:
+	DataReadErrorCode load(DataReader &reader) override;
+};
+
+struct ObjectReferenceVariableModifierV1 : public DataObject {
+	ObjectReferenceVariableModifierV1();
+
+	TypicalModifierHeader modHeader;
+	uint32 unknown1;
+	Event setToSourcesParentWhen;
 
 protected:
 	DataReadErrorCode load(DataReader &reader) override;
@@ -1885,7 +1997,7 @@ struct MToonAsset : public DataObject {
 	uint32 codecID;
 	uint8 unknown4_1[8];
 	uint32 codecDataSize;
-	uint8 unknown4_2[4];
+	Point registrationPoint;
 
 	Common::Array<FrameDef> frames;
 

@@ -72,7 +72,7 @@ DirectorEngine::DirectorEngine(OSystem *syst, const DirectorGameDescription *gam
 	// Load key codes
 	loadKeyCodes();
 
-	_currentPalette = nullptr;
+	memset(_currentPalette, 0, 768);
 	_currentPaletteLength = 0;
 	_stage = nullptr;
 	_windowList = new Datum;
@@ -135,7 +135,7 @@ DirectorEngine::~DirectorEngine() {
 	delete _wm;
 	delete _surface;
 
-	for (Common::HashMap<Common::String, Archive *, Common::IgnoreCase_Hash, Common::IgnoreCase_EqualTo>::iterator it = _openResFiles.begin(); it != _openResFiles.end(); ++it) {
+	for (Common::HashMap<Common::String, Archive *, Common::IgnoreCase_Hash, Common::IgnoreCase_EqualTo>::iterator it = _allOpenResFiles.begin(); it != _allOpenResFiles.end(); ++it) {
 		delete it->_value;
 	}
 
@@ -148,6 +148,13 @@ DirectorEngine::~DirectorEngine() {
 Archive *DirectorEngine::getMainArchive() const { return _currentWindow->getMainArchive(); }
 Movie *DirectorEngine::getCurrentMovie() const { return _currentWindow->getCurrentMovie(); }
 Common::String DirectorEngine::getCurrentPath() const { return _currentWindow->getCurrentPath(); }
+Common::String DirectorEngine::getCurrentAbsolutePath() {
+	Common::String currentPath = getCurrentPath();
+	Common::String result;
+	result += (getPlatform() == Common::kPlatformWindows) ? "C:\\" : "";
+	result += convertPath(currentPath);
+	return result;
+}
 
 static bool buildbotErrorHandler(const char *msg) { return true; }
 
@@ -175,7 +182,7 @@ Common::Error DirectorEngine::run() {
 		return Common::kAudioDeviceInitFailed;
 	}
 
-	_currentPalette = nullptr;
+	memset(_currentPalette, 0, 768);
 
 	//        we run mac-style menus     |   and we will redraw all widgets
 	_wmMode = Graphics::kWMModalMenuMode | Graphics::kWMModeManualDrawWidgets;
@@ -228,6 +235,11 @@ Common::Error DirectorEngine::run() {
 	Common::Error err = _currentWindow->loadInitialMovie();
 	if (err.getCode() != Common::kNoError)
 		return err;
+
+	if (debugChannelSet(-1, kDebugConsole)) {
+		g_debugger->attach();
+		g_system->updateScreen();
+	}
 
 	bool loop = true;
 

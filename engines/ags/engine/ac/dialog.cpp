@@ -820,12 +820,12 @@ bool DialogOptions::Run() {
 
 	KeyInput ki;
 	if (run_service_key_controls(ki) && !_GP(play).IsIgnoringInput()) {
-		eAGSKeyCode gkey = ki.Key;
+		const eAGSKeyCode agskey = ki.Key;
 		if (parserInput) {
 			wantRefresh = true;
 			// type into the parser 
 			// TODO: find out what are these key commands, and are these documented?
-			if ((gkey == eAGSKeyCodeF3) || ((gkey == eAGSKeyCodeSpace) && (parserInput->Text.GetLength() == 0))) {
+			if ((agskey == eAGSKeyCodeF3) || ((agskey == eAGSKeyCodeSpace) && (parserInput->Text.GetLength() == 0))) {
 				// write previous contents into textbox (F3 or Space when box is empty)
 				size_t last_len = ustrlen(_GP(play).lastParserEntry);
 				size_t cur_len = ustrlen(parserInput->Text.GetCStr());
@@ -841,7 +841,7 @@ bool DialogOptions::Run() {
 				//ags_domouse(DOMOUSE_DISABLE);
 				Redraw();
 				return true; // continue running loop
-			} else if ((gkey >= eAGSKeyCodeSpace) || (gkey == eAGSKeyCodeReturn) || (gkey == eAGSKeyCodeBackspace)) {
+			} else if ((agskey >= eAGSKeyCodeSpace) || (agskey == eAGSKeyCodeReturn) || (agskey == eAGSKeyCodeBackspace)) {
 				parserInput->OnKeyPress(ki);
 				if (!parserInput->IsActivated) {
 					//ags_domouse(DOMOUSE_DISABLE);
@@ -853,7 +853,7 @@ bool DialogOptions::Run() {
 			if (old_keyhandle || (ki.UChar == 0)) {
 				// "dialog_options_key_press"
 				_GP(runDialogOptionKeyPressHandlerFunc).params[0].SetDynamicObject(&_GP(ccDialogOptionsRendering), &_GP(ccDialogOptionsRendering));
-				_GP(runDialogOptionKeyPressHandlerFunc).params[1].SetInt32(AGSKeyToScriptKey(gkey));
+				_GP(runDialogOptionKeyPressHandlerFunc).params[1].SetInt32(AGSKeyToScriptKey(ki.Key));
 				_GP(runDialogOptionKeyPressHandlerFunc).params[2].SetInt32(ki.Mod);
 				run_function_on_non_blocking_thread(&_GP(runDialogOptionKeyPressHandlerFunc));
 			}
@@ -866,8 +866,8 @@ bool DialogOptions::Run() {
 		}
 		// Allow selection of options by keyboard shortcuts
 		else if (_GP(game).options[OPT_DIALOGNUMBERED] >= kDlgOptKeysOnly &&
-			gkey >= '1' && gkey <= '9') {
-			int numkey = gkey - '1';
+			agskey >= '1' && agskey <= '9') {
+			int numkey = agskey - '1';
 			if (numkey < numdisp) {
 				chose = disporder[numkey];
 				return false; // end dialog options running loop
@@ -915,14 +915,14 @@ bool DialogOptions::Run() {
 			parserActivated = 1;
 	}
 
-	int mouseButtonPressed = MouseNone;
-	int mouseWheelTurn = 0;
-	if (run_service_mb_controls(mouseButtonPressed, mouseWheelTurn) && mouseButtonPressed >= 0 &&
+	eAGSMouseButton mbut;
+	int mwheelz;
+	if (run_service_mb_controls(mbut, mwheelz) && mbut > kMouseNone &&
 		!_GP(play).IsIgnoringInput()) {
 		if (mouseison < 0 && !new_custom_render) {
 			if (usingCustomRendering) {
 				_GP(runDialogOptionMouseClickHandlerFunc).params[0].SetDynamicObject(&_GP(ccDialogOptionsRendering), &_GP(ccDialogOptionsRendering));
-				_GP(runDialogOptionMouseClickHandlerFunc).params[1].SetInt32(mouseButtonPressed + 1);
+				_GP(runDialogOptionMouseClickHandlerFunc).params[1].SetInt32(mbut);
 				run_function_on_non_blocking_thread(&_GP(runDialogOptionMouseClickHandlerFunc));
 
 				if (_GP(runDialogOptionMouseClickHandlerFunc).atLeastOneImplementationExists) {
@@ -937,7 +937,7 @@ bool DialogOptions::Run() {
 			parserActivated = 1;
 		} else if (new_custom_render) {
 			_GP(runDialogOptionMouseClickHandlerFunc).params[0].SetDynamicObject(&_GP(ccDialogOptionsRendering), &_GP(ccDialogOptionsRendering));
-			_GP(runDialogOptionMouseClickHandlerFunc).params[1].SetInt32(mouseButtonPressed + 1);
+			_GP(runDialogOptionMouseClickHandlerFunc).params[1].SetInt32(mbut);
 			run_function_on_non_blocking_thread(&_GP(runDialogOptionMouseClickHandlerFunc));
 		} else if (usingCustomRendering) {
 			chose = mouseison;
@@ -949,9 +949,9 @@ bool DialogOptions::Run() {
 	}
 
 	if (usingCustomRendering) {
-		if (mouseWheelTurn != 0) {
+		if (mwheelz != 0) {
 			_GP(runDialogOptionMouseClickHandlerFunc).params[0].SetDynamicObject(&_GP(ccDialogOptionsRendering), &_GP(ccDialogOptionsRendering));
-			_GP(runDialogOptionMouseClickHandlerFunc).params[1].SetInt32((mouseWheelTurn < 0) ? 9 : 8);
+			_GP(runDialogOptionMouseClickHandlerFunc).params[1].SetInt32((mwheelz < 0) ? 9 : 8);
 			run_function_on_non_blocking_thread(&_GP(runDialogOptionMouseClickHandlerFunc));
 
 			if (!new_custom_render) {

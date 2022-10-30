@@ -33,7 +33,7 @@ TextDisplayer_MR::TextDisplayer_MR(KyraEngine_MR *vm, Screen_MR *screen)
 char *TextDisplayer_MR::preprocessString(const char *str) {
 	if (_talkBuffer != str) {
 		assert(strlen(str) < sizeof(_talkBuffer) - 1);
-		strcpy(_talkBuffer, str);
+		Common::strlcpy(_talkBuffer, str, sizeof(_talkBuffer));
 	}
 
 	char *p = _talkBuffer;
@@ -744,7 +744,7 @@ void KyraEngine_MR::processDialog(int vocHighIndex, int vocHighBase, int funcNum
 			setDlgIndex(vocHighBase);
 		} else if (cmd == 11) {
 			int strSize = _cnvFile->readUint16LE();
-			vocLow = _cnvFile->readUint16LE();
+			_cnvFile->readUint16LE();
 			_cnvFile->read(_stringBuffer, strSize);
 			_stringBuffer[strSize] = 0;
 		} else {
@@ -762,10 +762,8 @@ void KyraEngine_MR::processDialog(int vocHighIndex, int vocHighBase, int funcNum
 
 			if (cmd != 12) {
 				if (object != script) {
-					if (script >= 0) {
+					if (script >= 0)
 						dialogEndScript(script);
-						script = -1;
-					}
 
 					dialogStartScript(object, funcNum);
 					script = object;

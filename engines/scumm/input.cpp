@@ -187,7 +187,7 @@ void ScummEngine::parseEvent(Common::Event event) {
 
 
 	// We update the mouse position whenever the mouse moves or a click occurs.
-	// The latter is done to accomodate systems with a touchpad / pen controller.
+	// The latter is done to accommodate systems with a touchpad / pen controller.
 	case Common::EVENT_LBUTTONDOWN:
 	case Common::EVENT_RBUTTONDOWN:
 	case Common::EVENT_MOUSEMOVE:
@@ -602,7 +602,11 @@ void ScummEngine_v6::processKeyboard(Common::KeyState lastKeyHit) {
 
 				pt = pauseEngine();
 
+#ifdef ENABLE_SCUMM_7_8
 				int volume = (_game.version > 6) ? _imuseDigital->diMUSEGetMusicGroupVol() : getMusicVolume();
+#else
+				int volume = getMusicVolume();
+#endif
 				do {
 					if (ks.keycode == Common::KEYCODE_o) {
 						volume -= 16;
@@ -636,7 +640,11 @@ void ScummEngine_v6::processKeyboard(Common::KeyState lastKeyHit) {
 
 				pt = pauseEngine();
 
+#ifdef ENABLE_SCUMM_7_8
 				int volume = (_game.version > 6) ? _imuseDigital->diMUSEGetVoiceGroupVol() : getSpeechVolume();
+#else
+				int volume = getSpeechVolume();
+#endif
 				do {
 					if (ks.keycode == Common::KEYCODE_k) {
 						volume -= 16;
@@ -670,7 +678,11 @@ void ScummEngine_v6::processKeyboard(Common::KeyState lastKeyHit) {
 
 				pt = pauseEngine();
 
+#ifdef ENABLE_SCUMM_7_8
 				int volume = (_game.version > 6) ? _imuseDigital->diMUSEGetSFXGroupVol() : getSFXVolume();
+#else
+				int volume = getSFXVolume();
+#endif
 				do {
 					if (ks.keycode == Common::KEYCODE_n) {
 						volume -= 16;
@@ -819,7 +831,7 @@ void ScummEngine_v3::processKeyboard(Common::KeyState lastKeyHit) {
 
 		updateIQPoints();
 
-		sprintf(text, "IQ Points: Episode = %d, Series = %d", _scummVars[244], _scummVars[245]);
+		Common::sprintf_s(text, "IQ Points: Episode = %d, Series = %d", _scummVars[244], _scummVars[245]);
 		Indy3IQPointsDialog indy3IQPointsDialog(this, text);
 		runDialog(indy3IQPointsDialog);
 	}
@@ -916,7 +928,8 @@ void ScummEngine::processKeyboard(Common::KeyState lastKeyHit) {
 		}
 
 		// "Text Speed  Slow  ==========  Fast"
-		if (_game.version > 3 && (lastKeyHit.ascii == '+' || lastKeyHit.ascii == '-')) {
+		if (((_game.version > 3 && _game.version < 8) || (_game.version == 8 && (_game.features & GF_DEMO)))
+			&& (lastKeyHit.ascii == '+' || lastKeyHit.ascii == '-')) {
 			if (VAR_CHARINC == 0xFF)
 				return;
 

@@ -21,14 +21,17 @@
 
 #include "scumm/scumm.h"
 #include "scumm/scumm_v4.h"
+#include "scumm/scumm_v6.h"
 #include "scumm/scumm_v8.h"
 #include "scumm/gfx.h"
 #include "scumm/dialogs.h"
 #include "scumm/charset.h"
 #include "scumm/string_v7.h"
+#include "scumm/sound.h"
 #include "scumm/smush/smush_player.h"
 #include "scumm/imuse_digi/dimuse_engine.h"
 
+#include "audio/mixer.h"
 #include "graphics/cursorman.h"
 #include "graphics/thumbnail.h"
 
@@ -412,8 +415,8 @@ void ScummEngine::clearBanner() {
 }
 
 void ScummEngine::setBannerColors(int bannerId, byte r, byte g, byte b) {
-	if (bannerId < 0 || bannerId > 50) {
-		debug(1, "ScummEngine::setBannerColors(): invalid slot %d out of range (min %d, max %d)", bannerId, 0, 50);
+	if (bannerId < 0 || bannerId > 49) {
+		debug(1, "ScummEngine::setBannerColors(): invalid slot %d out of range (min %d, max %d)", bannerId, 0, 49);
 		return;
 	}
 
@@ -875,7 +878,7 @@ const char *ScummEngine_v8::getGUIString(int stringId) {
 		resStringId = 35;
 		break;
 	default:
-		return _emptyMsg;
+		break;
 	}
 
 	if (resStringId > 0)
@@ -1002,12 +1005,12 @@ const char *ScummEngine_v7::getGUIString(int stringId) {
 		resStringId = 58;
 		break;
 	default:
-		return _emptyMsg;
+		break;
 	}
 
 	const char *res =  (resStringId > 0) ? d.getPlainEngineString(resStringId) : _emptyMsg;
 
-	if (_game.id == GID_DIG) {
+	if (_game.id == GID_DIG && resStringId > 0) {
 		convertMessageToString((const byte*)res, _guiStringTransBuff, 512);
 		res = (const char*)_guiStringTransBuff;
 	}
@@ -1272,8 +1275,8 @@ void ScummEngine::queryQuit(bool returnToLauncher) {
 
 	convertMessageToString((const byte *)getGUIString(gsQuitPrompt), (byte *)msgLabelPtr, sizeof(msgLabelPtr));
 	if (msgLabelPtr[0] != '\0') {
-		localizedYesKey = msgLabelPtr[strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1];
-		msgLabelPtr[strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1] = '\0';
+		localizedYesKey = msgLabelPtr[Common::strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1];
+		msgLabelPtr[Common::strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1] = '\0';
 
 		_system->setFeatureState(OSystem::kFeatureVirtualKeyboard, true);
 
@@ -1307,8 +1310,8 @@ void ScummEngine::queryRestart() {
 
 	convertMessageToString((const byte *)getGUIString(gsRestart), (byte *)msgLabelPtr, sizeof(msgLabelPtr));
 	if (msgLabelPtr[0] != '\0') {
-		localizedYesKey = msgLabelPtr[strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1];
-		msgLabelPtr[strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1] = '\0';
+		localizedYesKey = msgLabelPtr[Common::strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1];
+		msgLabelPtr[Common::strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1] = '\0';
 
 		_system->setFeatureState(OSystem::kFeatureVirtualKeyboard, true);
 
@@ -1326,6 +1329,9 @@ void ScummEngine::queryRestart() {
 
 			if (_game.version < 5)
 				restoreCharsetBg();
+
+			if (_game.id == GID_SAMNMAX)
+				fadeOut(134);
 
 			restart();
 		}
@@ -1394,8 +1400,8 @@ bool ScummEngine::canWriteGame(int slotId) {
 			Common::strlcpy(msgLabelPtr, "Do you want to replace this saved game?  (Y/N)Y", sizeof(msgLabelPtr));
 		}
 
-		localizedYesKey = msgLabelPtr[strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1];
-		msgLabelPtr[strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1] = '\0';
+		localizedYesKey = msgLabelPtr[Common::strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1];
+		msgLabelPtr[Common::strnlen(msgLabelPtr, sizeof(msgLabelPtr)) - 1] = '\0';
 
 		_system->setFeatureState(OSystem::kFeatureVirtualKeyboard, true);
 
@@ -1872,8 +1878,10 @@ bool ScummEngine::executeMainMenuOperation(int op, int mouseX, int mouseY, bool 
 				if (loadState(curSlot - 1, false)) {
 					hasLoadedState = true;
 
+#ifdef ENABLE_SCUMM_7_8
 					if (!_spooledMusicIsToBeEnabled)
 						_imuseDigital->diMUSEDisableSpooledMusic();
+#endif
 
 					setSkipVideo(0);
 					_saveScriptParam = GAME_PROPER_LOAD;
@@ -1987,6 +1995,7 @@ bool ScummEngine::executeMainMenuOperation(int op, int mouseX, int mouseY, bool 
 	case GUI_CTRL_SPOOLED_MUSIC_CHECKBOX:
 		_spooledMusicIsToBeEnabled ^= 1;
 
+#ifdef ENABLE_SCUMM_7_8
 		// Just for safety, this should never be nullptr...
 		if (_imuseDigital) {
 			if (_spooledMusicIsToBeEnabled) {
@@ -1995,6 +2004,7 @@ bool ScummEngine::executeMainMenuOperation(int op, int mouseX, int mouseY, bool 
 				_imuseDigital->diMUSEDisableSpooledMusic();
 			}
 		}
+#endif
 		updateMainMenuControls();
 		ScummEngine::drawDirtyScreenParts();
 		break;
@@ -3121,7 +3131,7 @@ const char *ScummEngine_v6::getGUIString(int stringId) {
 		resStringId = 35;
 		break;
 	default:
-		return _emptyMsg;
+		break;
 	}
 
 	if (resStringId > 0)
@@ -3208,7 +3218,7 @@ const char *ScummEngine::getGUIString(int stringId) {
 		resStringId = 28;
 		break;
 	default:
-		return _emptyMsg;
+		break;
 	}
 
 	if (resStringId > 0)

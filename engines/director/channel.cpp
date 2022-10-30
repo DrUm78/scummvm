@@ -107,8 +107,8 @@ Channel::~Channel() {
 
 DirectorPlotData Channel::getPlotData() {
 	DirectorPlotData pd(g_director, _sprite->_spriteType, _sprite->_ink, _sprite->_blend, _sprite->getBackColor(), _sprite->getForeColor());
-	pd.colorWhite = pd.d->_wm->_colorWhite;
-	pd.colorBlack = pd.d->_wm->_colorBlack;
+	pd.colorWhite = 255;
+	pd.colorBlack = 0;
 	pd.dst = nullptr;
 
 	pd.srf = getSurface();
@@ -321,7 +321,7 @@ bool Channel::isActiveVideo() {
 }
 
 void Channel::updateVideoTime() {
-	if (_sprite)
+	if (isActiveVideo())
 		_movieTime = ((DigitalVideoCastMember *)_sprite->_cast)->getMovieCurrentTime();
 }
 
@@ -503,6 +503,10 @@ void Channel::replaceSprite(Sprite *nextSprite) {
 		widgetKeeped = false;
 		_sprite->_cast->releaseWidget();
 		newSprite = true;
+	}
+	if (_sprite->_castId != nextSprite->_castId && _sprite->_cast && _sprite->_cast->_type == kCastDigitalVideo) {
+		((DigitalVideoCastMember *)_sprite->_cast)->stopVideo();
+		((DigitalVideoCastMember *)_sprite->_cast)->rewindVideo();
 	}
 
 	int width = _width;
