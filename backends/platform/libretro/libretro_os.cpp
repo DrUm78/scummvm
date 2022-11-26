@@ -32,6 +32,7 @@
 #include "surface.libretro.h"
 #include "backends/base-backend.h"
 #include "common/events.h"
+#include "common/config-manager.h"
 #include "audio/mixer_intern.h"
 
 #if defined(_WIN32)
@@ -312,6 +313,7 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
 
       Graphics::Surface _overlay;
       bool _overlayVisible;
+      bool _overlayInGUI;
 
       Graphics::Surface _mouseImage;
       RetroPalette _mousePalette;
@@ -392,6 +394,14 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
          _mixer->setReady(true);
 
          EventsBaseBackend::initBackend();
+      }
+
+      virtual void engineInit(){
+         Common::String engineId = ConfMan.get("engineid");
+         if ( engineId.equalsIgnoreCase("scumm") && ConfMan.getBool("original_gui") ){
+            ConfMan.setBool("original_gui",false);
+            log_cb(RETRO_LOG_INFO, "\"original_gui\" setting forced to false\n");
+         }
       }
 
       virtual bool hasFeature(Feature f)
@@ -501,7 +511,7 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
 
       virtual void updateScreen()
       {
-         const Graphics::Surface& srcSurface = (_overlayVisible) ? _overlay : _gameScreen;
+         const Graphics::Surface& srcSurface = (_overlayInGUI) ? _overlay : _gameScreen;
          if(srcSurface.w && srcSurface.h)
          {
             switch(srcSurface.format.bytesPerPixel)
@@ -547,14 +557,15 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
          // TODO
       }
 
-      virtual void showOverlay()
+      virtual void showOverlay(bool inGUI)
       {
-         _overlayVisible = true;
+        _overlayVisible = true;
+        _overlayInGUI = inGUI;
       }
 
       virtual void hideOverlay()
       {
-         _overlayVisible = false;
+         _overlayInGUI = false;
       }
 
       virtual void clearOverlay()
@@ -797,7 +808,7 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
 
       const Graphics::Surface& getScreen()
       {
-         const Graphics::Surface& srcSurface = (_overlayVisible) ? _overlay : _gameScreen;
+         const Graphics::Surface& srcSurface = (_overlayInGUI) ? _overlay : _gameScreen;
 
          if(srcSurface.w != _screen.w || srcSurface.h != _screen.h)
          {
