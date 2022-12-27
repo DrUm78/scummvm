@@ -363,7 +363,7 @@ bool retro_load_game(const struct retro_game_info *game)
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3,     "F10" },
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,     "Numpad 0" },
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,  "ScummVM GUI" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "F1" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Virtual Keyboard" },
       { 0, RETRO_DEVICE_MOUSE,  0, RETRO_DEVICE_ID_MOUSE_LEFT,    "Left click" },
       { 0, RETRO_DEVICE_MOUSE,  0, RETRO_DEVICE_ID_MOUSE_RIGHT,   "Right click" },
       { 0 },

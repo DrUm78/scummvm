@@ -15,6 +15,7 @@ MODERN_THEME_FILE="$(readlink -f "${SCRIPT_DIR}/../../../../gui/themes/scummmode
 REMASTERED_THEME_FILE="$(readlink -f "${SCRIPT_DIR}/../../../../gui/themes/scummremastered/scummremastered.zip")"
 RESIDUAL_THEME_FILE="$(readlink -f "${SCRIPT_DIR}/../../../../gui/themes/residualvm/residualvm.zip")"
 SOUNDFONT_FILE="${SCRIPT_DIR}/soundfont/Roland_SC-55.sf2"
+VKEYBD_FILE="$(readlink -f "${SCRIPT_DIR}/../../../vkeybd/packs/vkeybd_default.zip")"
 
 ENGINE_DATA_DIR="$(readlink -f "${SCRIPT_DIR}/../../../../dists/engine-data")"
 ENGINE_DATA_LIST_FILE="${SCRIPT_DIR}/engine_data_list.txt"
@@ -63,6 +64,9 @@ cp -v "$RESIDUAL_THEME_FILE" "$BUNDLE_THEME_DIR"
 
 # Copy soundfont file
 cp -v "$SOUNDFONT_FILE" "$BUNDLE_EXTRA_DIR"
+
+# Copy virtual keyboard zip file
+cp -v "$VKEYBD_FILE" "$BUNDLE_EXTRA_DIR"
 
 # Copy engine data files
 for FILE_INDEX in $(seq 0 $((${#ENGINE_DATA_LIST[@]} - 1)))

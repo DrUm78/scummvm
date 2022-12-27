@@ -437,6 +437,7 @@ MODULES += \
 	engines \
 	gui \
 	backends \
+	backends/vkeybd \
 	video \
 	image \
 	graphics \
