@@ -836,15 +836,15 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
             {Common::EVENT_RBUTTONDOWN, Common::EVENT_RBUTTONUP}
          };
 			
-			static const unsigned gampad_key_map[8][3] = {
-				{ RETRO_DEVICE_ID_JOYPAD_X,      (unsigned)Common::KEYCODE_ESCAPE,    (unsigned)Common::ASCII_ESCAPE    }, // Esc
-				{ RETRO_DEVICE_ID_JOYPAD_Y,      (unsigned)Common::KEYCODE_PERIOD,    46                                }, // .
-				{ RETRO_DEVICE_ID_JOYPAD_L,      (unsigned)Common::KEYCODE_RETURN,    (unsigned)Common::ASCII_RETURN    }, // Enter
-				{ RETRO_DEVICE_ID_JOYPAD_R,      (unsigned)Common::KEYCODE_KP5,       53                                }, // Numpad 5
-				{ RETRO_DEVICE_ID_JOYPAD_L2,     (unsigned)Common::KEYCODE_BACKSPACE, (unsigned)Common::ASCII_BACKSPACE }, // Backspace
-				{ RETRO_DEVICE_ID_JOYPAD_L3,     (unsigned)Common::KEYCODE_F10,       (unsigned)Common::ASCII_F10       }, // F10
-				{ RETRO_DEVICE_ID_JOYPAD_R3,     (unsigned)Common::KEYCODE_KP0,       48                                }, // Numpad 0
-				{ RETRO_DEVICE_ID_JOYPAD_SELECT, (unsigned)Common::KEYCODE_F1,        (unsigned)Common::ASCII_F1        }, // F1
+			static const unsigned gampad_key_map[8][4] = {
+				{ RETRO_DEVICE_ID_JOYPAD_X,      (unsigned)Common::KEYCODE_ESCAPE,    (unsigned)Common::ASCII_ESCAPE,    0              }, // Esc
+				{ RETRO_DEVICE_ID_JOYPAD_Y,      (unsigned)Common::KEYCODE_PERIOD,    46,                                0              }, // .
+				{ RETRO_DEVICE_ID_JOYPAD_L,      (unsigned)Common::KEYCODE_RETURN,    (unsigned)Common::ASCII_RETURN,    0              }, // Enter
+				{ RETRO_DEVICE_ID_JOYPAD_R,      (unsigned)Common::KEYCODE_KP5,       53,                                0              }, // Numpad 5
+				{ RETRO_DEVICE_ID_JOYPAD_L2,     (unsigned)Common::KEYCODE_BACKSPACE, (unsigned)Common::ASCII_BACKSPACE, 0              }, // Backspace
+				{ RETRO_DEVICE_ID_JOYPAD_L3,     (unsigned)Common::KEYCODE_F10,       (unsigned)Common::ASCII_F10,       0              }, // F10
+				{ RETRO_DEVICE_ID_JOYPAD_R3,     (unsigned)Common::KEYCODE_KP0,       48,                                0              }, // Numpad 0
+				{ RETRO_DEVICE_ID_JOYPAD_SELECT, (unsigned)Common::KEYCODE_F7,        (unsigned)Common::ASCII_F7,        RETROKMOD_CTRL }, // CTRL+F7 (virtual keyboard)
 			};
 			
 			// Right stick circular wrap around: 1 -> 2 -> 3 -> 6 -> 9 -> 8 -> 7 -> 4
@@ -1114,7 +1114,7 @@ class OSystem_RETRO : public EventsBaseBackend, public PaletteManager {
 				{
 					_joypadkeyboardButtons[i] = down;
 					bool state = down ? true : false;
-					processKeyEvent(state, gampad_key_map[i][1], (uint32_t)gampad_key_map[i][2], 0);
+					processKeyEvent(state, gampad_key_map[i][1], (uint32_t)gampad_key_map[i][2], (uint32_t)gampad_key_map[i][3]);
 				}
 			}
 			
