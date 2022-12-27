@@ -225,7 +225,9 @@ public:
 		BOTTOM_LEFT = 4,
 		BOTTOM_RIGHT = 5,
 		TOP_CENTER = 6,
-		BOTTOM_CENTER = 7
+		BOTTOM_CENTER = 7,
+		LEFT_CENTER = 8,
+		RIGHT_CENTER = 9
 	};
 
 	//! Moves this gump to a relative location on the parent gump
@@ -381,12 +383,11 @@ public:
 		return _index;
 	}
 
-	// Dragging
-	//! Called when a child gump starts to be dragged.
-	//! \return false if the child isn't allowed to be dragged.
-	virtual bool StartDraggingChild(Gump *gump, int32 mx, int32 my);
-	virtual void DraggingChild(Gump *gump, int mx, int my);
-	virtual void StopDraggingChild(Gump *gump);
+	//! Called when a gump starts to be dragged.
+	//! \return false if the gump isn't allowed to be dragged.
+	virtual bool onDragStart(int32 mx, int32 my);
+	virtual void onDragStop(int32 mx, int32 my);
+	virtual void onDrag(int32 mx, int32 my);
 
 	//! This will be called when an item in this gump starts to be dragged.
 	//! \return false if the item isn't allowed to be dragged.

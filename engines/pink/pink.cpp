@@ -20,9 +20,9 @@
  */
 
 #include "common/debug-channels.h"
-#include "common/winexe_pe.h"
+#include "common/formats/winexe_pe.h"
 #include "common/config-manager.h"
-#include "common/installshield_cab.h"
+#include "common/compression/installshield_cab.h"
 
 #include "engines/advancedDetector.h"
 #include "engines/util.h"

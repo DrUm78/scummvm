@@ -360,7 +360,7 @@ ScummEngine::ScummEngine(OSystem *syst, const DetectorResult &dr)
 
 	setV1ColorTable(_renderMode);
 
-	_isRTL = (_language == Common::HE_ISR && (_game.heversion == 0 || _game.heversion >= 72)) 
+	_isRTL = (_language == Common::HE_ISR && (_game.heversion == 0 || _game.heversion >= 72))
 			&& (_game.id == GID_MANIAC || (_game.version >= 4 && _game.version < 7)) && !(_game.features & GF_HE_NO_BIDI);
 #ifndef DISABLE_HELP
 	// Create custom GMM dialog providing a help subdialog
@@ -483,12 +483,6 @@ ScummEngine_v3::ScummEngine_v3(OSystem *syst, const DetectorResult &dr)
 	// All v3 and older games only used 16 colors with exception of the GF_OLD256 games.
 	if (!(_game.features & GF_OLD256))
 		_game.features |= GF_16COLOR;
-
-	_savePreparedSavegame = nullptr;
-}
-
-ScummEngine_v3::~ScummEngine_v3() {
-	delete _savePreparedSavegame;
 }
 
 ScummEngine_v3old::ScummEngine_v3old(OSystem *syst, const DetectorResult &dr)
@@ -1748,7 +1742,6 @@ void ScummEngine_v2::resetScumm() {
 void ScummEngine_v3::resetScumm() {
 	ScummEngine_v4::resetScumm();
 
-
 	if (_game.id == GID_LOOM && _game.platform == Common::kPlatformPCEngine) {
 		// Load tile set and palette for the distaff
 		byte *roomptr = getResourceAddress(rtRoom, 90);
@@ -1760,9 +1753,6 @@ void ScummEngine_v3::resetScumm() {
 		_gdi->loadTiles(roomptr);
 		_gdi->_distaff = false;
 	}
-
-	delete _savePreparedSavegame;
-	_savePreparedSavegame = nullptr;
 }
 
 void ScummEngine_v4::resetScumm() {
@@ -2016,7 +2006,7 @@ void ScummEngine::setupMusic(int midi, const Common::String &macInstrumentFile) 
 	} else if ((_sound->_musicType == MDT_PCSPK || _sound->_musicType == MDT_PCJR) && (_game.version > 2 && _game.version <= 4)) {
 		_musicEngine = new Player_V2(this, _mixer, MidiDriver::getMusicType(dev) != MT_PCSPK);
 	} else if (_sound->_musicType == MDT_CMS) {
-		_musicEngine = new Player_V2CMS(this, _mixer);
+		_musicEngine = new Player_V2CMS(this);
 	} else if (_game.platform == Common::kPlatform3DO && _game.heversion <= 62) {
 		// 3DO versions use digital music and sound samples.
 	} else if (_game.platform == Common::kPlatformFMTowns && (_game.version == 3 || _game.id == GID_MONKEY)) {
@@ -2032,10 +2022,8 @@ void ScummEngine::setupMusic(int midi, const Common::String &macInstrumentFile) 
 		// support this with the Player_AD code at the moment. The reason here
 		// is that multi MIDI is supported internally by our iMuse output.
 		_musicEngine = new Player_AD(this, _mixer->mutex());
-#ifdef ENABLE_HE
 	} else if (_game.platform == Common::kPlatformDOS && _sound->_musicType == MDT_ADLIB && _game.heversion >= 60) {
 		_musicEngine = new Player_HE(this);
-#endif
 	} else if (_game.version >= 3 && _game.heversion <= 62) {
 		MidiDriver *nativeMidiDriver = nullptr;
 		MidiDriver *adlibMidiDriver = nullptr;
@@ -2598,7 +2586,8 @@ load_game:
 
 	_res->increaseExpireCounter();
 
-	animateCursor();
+	if (!isUsingOriginalGUI() || ((_game.version >= 3) || !isPaused()))
+		animateCursor();
 
 	/* show or hide mouse */
 	CursorMan.showMouse(_cursor.state > 0);
@@ -2725,6 +2714,9 @@ void ScummEngine::scummLoop_handleSaveLoad() {
 }
 
 void ScummEngine_v3::scummLoop_handleSaveLoad() {
+	if (isUsingOriginalGUI() && _saveLoadFlag == 0 && !_loadFromLauncher)
+		return;
+
 	bool processIQPoints = (_game.id == GID_INDY3 && (_saveLoadFlag == 2 || _loadFromLauncher));
 	_loadFromLauncher = false;
 
@@ -3030,6 +3022,34 @@ void ScummEngine::scummLoop_handleEffects() {
 }
 
 void ScummEngine::scummLoop_handleSound() {
+	// The original interpreters for the earlier games (v0-v4) allowed the user
+	// to disable internal speaker sounds with a keyboard combination.
+	// Let's see if sound has to be played: if we're not using the original GUI,
+	// let's allow it unconditionally; if the sound device is not between the ones listed,
+	// we allow the sound, otherwise we let our keyboard combination flag decide.
+	if (_game.version < 5 && isUsingOriginalGUI()) {
+		bool soundIsEnabled = !((_sound->_musicType == MDT_PCSPK ||
+								_sound->_musicType == MDT_PCJR ||
+								_sound->_musicType == MDT_CMS ||
+								_sound->_musicType == MDT_APPLEIIGS ||
+								_sound->_musicType == MDT_C64) &&
+								(_internalSpeakerSoundsAreOn == 0));
+
+		// Furthermore, the original ones apparently did the trick at a lower level. In our case
+		// this a bit overkill for a feature which is not that known: we could just mute the
+		// mixer to obtain the same effect. Let's avoid muting/unmuting the mixer at every
+		// scummLoop_handleSound() call, though :-)
+		if (!soundIsEnabled && !_mixerMutedByGUI) {
+			_mixer->muteSoundType(Audio::Mixer::SoundType::kMusicSoundType, true);
+			_mixer->muteSoundType(Audio::Mixer::SoundType::kPlainSoundType, true);
+			_mixerMutedByGUI = true;
+		} else if (soundIsEnabled && _mixerMutedByGUI) {
+			_mixer->muteSoundType(Audio::Mixer::SoundType::kMusicSoundType, false);
+			_mixer->muteSoundType(Audio::Mixer::SoundType::kPlainSoundType, false);
+			_mixerMutedByGUI = false;
+		}
+	}
+
 	_sound->processSound();
 }
 
@@ -3145,13 +3165,15 @@ bool ScummEngine::isUsingOriginalGUI() {
 	if (_game.id == GID_MONKEY2 && (_game.features & GF_DEMO))
 		return false;
 
+	if (_game.platform == Common::kPlatformNES ||
+		_game.platform == Common::kPlatformPCEngine ||
+		(_game.platform == Common::kPlatformAtariST && _game.version == 2))
+		return false;
+
 	if (_game.heversion != 0)
 		return false;
 
-	if (_game.version > 3)
-		return _useOriginalGUI;
-
-	return false;
+	return _useOriginalGUI;
 }
 
 void ScummEngine::runBootscript() {
@@ -3175,6 +3197,7 @@ void ScummEngine::runBootscript() {
 	}
 
 	args[0] = _bootParam;
+
 	if (_game.id == GID_MANIAC && (_game.features & GF_DEMO) && (_game.platform != Common::kPlatformC64))
 		runScript(9, 0, 0, args);
 	else

@@ -301,6 +301,11 @@ void Draw_v2::printTotText(int16 id) {
 	_backColor = *ptr++;
 	_transparency = 1;
 
+	if ((_vm->getGameType() == kGameTypeAdibou2 ||
+		 _vm->getGameType() == kGameTypeAdi4) &&
+		_backColor == 16)
+		_backColor = -1;
+
 	spriteOperation(DRAW_CLEARRECT);
 
 	_backColor = 0;
@@ -748,7 +753,7 @@ void Draw_v2::spriteOperation(int16 operation) {
 				_spriteLeft, spriteTop,
 				_spriteLeft + _spriteRight - 1,
 				_spriteTop + _spriteBottom - 1,
-				_destSpriteX, _destSpriteY, (_transparency == 0) ? -1 : 0);
+				_destSpriteX, _destSpriteY, (_transparency == 0) ? -1 : 0, _transparency & 0x80);
 
 		dirtiedRect(_destSurface, _destSpriteX, _destSpriteY,
 				_destSpriteX + _spriteRight - 1, _destSpriteY + _spriteBottom - 1);
@@ -919,6 +924,7 @@ void Draw_v2::spriteOperation(int16 operation) {
 		break;
 
 	default:
+		warning("unkown operation %d in Draw_v2::spriteOperation", operation);
 		break;
 	}
 

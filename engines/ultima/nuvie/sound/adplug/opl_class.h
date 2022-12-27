@@ -39,17 +39,6 @@ namespace Nuvie {
 /* select output bits size of output : 8 or 16 */
 #define OPL_SAMPLE_BITS 16
 
-/* compiler dependence */
-#ifndef OSD_CPU_H
-#define OSD_CPU_H
-typedef unsigned char   uint8;   /* unsigned  8bit */
-typedef unsigned short  UINT16;  /* unsigned 16bit */
-typedef unsigned int    uint32;  /* unsigned 32bit */
-typedef signed char     int8;    /* signed  8bit   */
-typedef signed short    int16;   /* signed 16bit   */
-typedef signed int      int32;   /* signed 32bit   */
-#endif
-
 #if (OPL_SAMPLE_BITS==16)
 typedef int16 OPLSAMPLE;
 #endif
@@ -79,7 +68,7 @@ typedef struct {
 	uint32  Cnt;        /* frequency counter            */
 	uint32  Incr;       /* frequency counter step       */
 	uint8   FB;         /* feedback shift value         */
-	int32   *connect1;  /* slot1 output pointer         */
+	signed int *connect1;  /* slot1 output pointer         */
 	int32   op1_out[2]; /* slot1 output for feedback    */
 	uint8   CON;        /* connection (algorithm) type  */
 

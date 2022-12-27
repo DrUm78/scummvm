@@ -24,7 +24,7 @@
 #include "common/file.h"
 #include "common/macresman.h"
 #include "common/substream.h"
-#include "common/winexe.h"
+#include "common/formats/winexe.h"
 #include "graphics/wincursor.h"
 
 #include "director/director.h"
@@ -155,6 +155,7 @@ void Window::probeMacBinary(MacArchive *archive) {
 				delete _currentMovie;
 				_currentMovie = nullptr;
 
+				probeProjector(moviePath);
 			} else {
 				warning("Couldn't find score with name: %s", sname.c_str());
 			}
@@ -177,6 +178,14 @@ void Window::probeMacBinary(MacArchive *archive) {
 		for (Common::Array<uint16>::iterator iterator = xcmd.begin(); iterator != xcmd.end(); ++iterator) {
 			Resource res = archive->getResourceDetail(MKTAG('X', 'C', 'M', 'D'), *iterator);
 			debug(0, "Detected XCMD '%s'", res.name.c_str());
+			g_lingo->openXLib(res.name, kXObj);
+		}
+	}
+	if (archive->hasResource(MKTAG('X', 'F', 'C', 'N'), -1)) {
+		Common::Array<uint16> xfcn = archive->getResourceIDList(MKTAG('X', 'F', 'C', 'N'));
+		for (Common::Array<uint16>::iterator iterator = xfcn.begin(); iterator != xfcn.end(); ++iterator) {
+			Resource res = archive->getResourceDetail(MKTAG('X', 'F', 'C', 'N'), *iterator);
+			debug(0, "Detected XFCN '%s'", res.name.c_str());
 			g_lingo->openXLib(res.name, kXObj);
 		}
 	}
@@ -276,7 +285,7 @@ void Window::loadEXE(const Common::String movie) {
 }
 
 void Window::loadEXEv3(Common::SeekableReadStream *stream) {
-	uint32 mmmSize;
+	uint32 mmmSize = 0;
 	Common::String mmmFileName;
 	Common::String directoryName;
 
@@ -423,12 +432,9 @@ void Window::loadMac(const Common::String movie) {
 		openMainArchive(movie);
 	} else {
 		// The RIFX is located in the data fork of the executable
-		_macBinary = new Common::MacResManager();
-
-		if (!_macBinary->open(Common::Path(movie, g_director->_dirSeparator)) || !_macBinary->hasDataFork())
+		Common::SeekableReadStream *dataFork = Common::MacResManager::openFileOrDataFork(Common::Path(movie, g_director->_dirSeparator));
+		if (!dataFork)
 			error("Failed to open Mac binary '%s'", movie.c_str());
-
-		Common::SeekableReadStream *dataFork = _macBinary->getDataFork();
 		_mainArchive = new RIFXArchive();
 		_mainArchive->setPathName(movie);
 

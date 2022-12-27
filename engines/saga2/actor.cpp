@@ -3112,7 +3112,7 @@ uint8 Actor::evaluateFollowerNeeds(Actor *follower) {
 
 //  Returns 0 if not moving, 1 if path being calculated,
 //  2 if path being followed.
-bool Actor::pathFindState() {
+int Actor::pathFindState() {
 	if (_moveTask == nullptr)
 		return 0;
 	if (_moveTask->_pathFindTask)
@@ -3437,7 +3437,7 @@ ResourceActor::ResourceActor(Common::SeekableReadStream *stream) : ResourceGameO
 		knowledge[i] = stream->readUint16LE();
 	}
 	schedule = stream->readUint16LE();
-	for (int i = 0; i < 18; ++i) { // padding bytes = not neccessary?
+	for (int i = 0; i < 18; ++i) { // padding bytes = not necessary?
 		reserved[i] = stream->readByte();
 	}
 }

@@ -560,8 +560,18 @@ struct DefaultDeleter {
 	}
 };
 
+template <typename T>
+struct ArrayDeleter {
+	inline void operator()(T *object) {
+		STATIC_ASSERT(sizeof(T) > 0, cannot_delete_incomplete_type);
+		delete[] object;
+	}
+};
+
 template<typename T, class DL = DefaultDeleter<T> >
 class ScopedPtr : private NonCopyable, public SafeBool<ScopedPtr<T, DL> > {
+	template<class T2, class DL2>
+	friend class ScopedPtr;
 public:
 	typedef T ValueType;
 	typedef T *PointerType;
@@ -648,7 +658,13 @@ public:
 	typedef T *PointerType;
 	typedef T &ReferenceType;
 
-	explicit DisposablePtr(PointerType o, DisposeAfterUse::Flag dispose) : _pointer(o), _dispose(dispose) {}
+	explicit DisposablePtr(PointerType o, DisposeAfterUse::Flag dispose) : _pointer(o), _dispose(dispose), _shared() {}
+	explicit DisposablePtr(SharedPtr<T> o) : _pointer(o.get()), _dispose(DisposeAfterUse::NO), _shared(o) {}
+	DisposablePtr(DisposablePtr<T, DL>&& o) : _pointer(o._pointer), _dispose(o._dispose), _shared(o._shared) {
+		o._pointer = nullptr;
+		o._dispose = DisposeAfterUse::NO;
+		o._shared.reset();
+	}
 
 	~DisposablePtr() {
 		if (_dispose) DL()(_pointer);
@@ -670,6 +686,7 @@ public:
 		if (_dispose) DL()(_pointer);
 		_pointer = o;
 		_dispose = dispose;
+		_shared.reset();
 	}
 
 	/**
@@ -679,12 +696,24 @@ public:
 		reset(nullptr, DisposeAfterUse::NO);
 	}
 
-	/**
-	 * Clears the pointer without destroying the old object.
-	 */
-	void disownPtr() {
+	template <class T2>
+	bool isDynamicallyCastable() {
+		return dynamic_cast<T2 *>(_pointer) != nullptr;
+	}
+
+	/* Destroys the smart pointer while returning a pointer to
+	   assign to a new object.
+ 	 */
+	template <class T2, class DL2 = DefaultDeleter<T2> >
+	DisposablePtr<T2, DL2> moveAndDynamicCast() {
+		DisposablePtr<T2, DL2> ret(nullptr, DisposeAfterUse::NO);
+		ret._pointer = dynamic_cast<T2 *>(_pointer);
+		ret._dispose = _dispose;
+		ret._shared = _shared.template dynamicCast<T2>();
 		_pointer = nullptr;
 		_dispose = DisposeAfterUse::NO;
+		_shared.reset();
+		return ret;
 	}
 
 	/**
@@ -694,15 +723,92 @@ public:
 	 */
 	PointerType get() const { return _pointer; }
 
-	/**
-	 * Returns the pointer's dispose flag.
-	 */
-	DisposeAfterUse::Flag getDispose() const { return _dispose; }
+	template <class T2, class DL2>
+	friend class DisposablePtr;
 
 private:
+	DisposablePtr() : _pointer(nullptr), _dispose(DisposeAfterUse::NO), _shared() {}
 	PointerType           _pointer;
 	DisposeAfterUse::Flag _dispose;
+	SharedPtr<T>          _shared;
+	bool                  _isvalid;
 };
+
+
+/**
+ * UnalignedPtr: Allows pointers to and access of memory addresses where the underlying data
+ * doesn't have proper alignment.
+ */
+
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM) || defined(_M_ARM64))
+
+template<class T>
+class UnalignedPtr {
+public:
+	UnalignedPtr();
+	UnalignedPtr(__unaligned T *ptr);
+
+	T load() const;
+	void store(const T &value) const;
+
+private:
+	__unaligned T *_ptr;
+};
+
+template<class T>
+UnalignedPtr<T>::UnalignedPtr() : _ptr(nullptr) {
+}
+
+template<class T>
+UnalignedPtr<T>::UnalignedPtr(__unaligned T *ptr) : _ptr(ptr) {
+}
+
+template<class T>
+T UnalignedPtr<T>::load() const {
+	return *_ptr;
+}
+
+template<class T>
+void UnalignedPtr<T>::store(const T &value) const {
+	*_ptr = value;
+}
+
+#else
+
+template<class T>
+class UnalignedPtr {
+public:
+	UnalignedPtr();
+	UnalignedPtr(T *ptr);
+
+	T load() const;
+	void store(const T &value) const;
+
+private:
+	T *_ptr;
+};
+
+template<class T>
+UnalignedPtr<T>::UnalignedPtr() : _ptr(nullptr) {
+}
+
+template<class T>
+UnalignedPtr<T>::UnalignedPtr(T *ptr) : _ptr(ptr) {
+}
+
+template<class T>
+T UnalignedPtr<T>::load() const {
+	T result;
+	memcpy(&result, _ptr, sizeof(T));
+	return result;
+}
+
+template<class T>
+void UnalignedPtr<T>::store(const T &value) const {
+	memcpy(_ptr, &value, sizeof(T));
+}
+
+#endif
 
 /** @} */
 

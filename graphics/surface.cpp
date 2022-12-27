@@ -27,7 +27,7 @@
 #include "graphics/palette.h"
 #include "graphics/primitives.h"
 #include "graphics/surface.h"
-#include "graphics/conversion.h"
+#include "graphics/blit.h"
 #include "graphics/transform_tools.h"
 
 namespace Graphics {
@@ -417,6 +417,19 @@ void Surface::flipVertical(const Common::Rect &r) {
 		memcpy(row2, temp, width);
 	}
 	delete[] temp;
+}
+
+void Surface::flipHorizontal(const Common::Rect &r) {
+	uint32 tmp = 0;
+	const int width = r.width() * format.bytesPerPixel;
+	for (int y = r.top; y < r.bottom; ++y) {
+		byte *row = (byte *)getBasePtr(r.left, y);
+		for (int x = 0; x < width / 2; x += format.bytesPerPixel) {
+			memcpy(&tmp, row + x, format.bytesPerPixel);
+			memcpy(row + x, row + width - format.bytesPerPixel - x, format.bytesPerPixel);
+			memcpy(row + width - format.bytesPerPixel - x, &tmp, format.bytesPerPixel);
+		}
+	}
 }
 
 Graphics::Surface *Surface::scale(int16 newWidth, int16 newHeight, bool filtering) const {

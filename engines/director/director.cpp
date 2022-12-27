@@ -221,6 +221,7 @@ Common::Error DirectorEngine::run() {
 	_currentWindow = _stage;
 
 	_lingo = new Lingo(this);
+	_lingo->switchStateFromWindow();
 
 	if (getGameGID() == GID_TEST) {
 		_currentWindow->runTests();
@@ -248,9 +249,8 @@ Common::Error DirectorEngine::run() {
 			processEvents();
 
 		_currentWindow = _stage;
-		g_lingo->loadStateFromWindow();
+		g_lingo->switchStateFromWindow();
 		loop = _currentWindow->step();
-		g_lingo->saveStateToWindow();
 
 		if (loop) {
 			FArray *windowList = g_lingo->_windowList.u.farr;
@@ -259,9 +259,8 @@ Common::Error DirectorEngine::run() {
 					continue;
 
 				_currentWindow = static_cast<Window *>(windowList->arr[i].u.obj);
-				g_lingo->loadStateFromWindow();
+				g_lingo->switchStateFromWindow();
 				_currentWindow->step();
-				g_lingo->saveStateToWindow();
 			}
 		}
 
@@ -324,7 +323,7 @@ void DirectorEngine::parseOptions() {
 					_options.startMovie.startFrame = atoi(tail.c_str());
 			}
 
-			_options.startMovie.startMovie = Common::punycode_decodepath(_options.startMovie.startMovie).toString(_dirSeparator);
+			_options.startMovie.startMovie = Common::Path(_options.startMovie.startMovie).punycodeDecode().toString(_dirSeparator);
 
 			debug(2, "parseOptions(): Movie is: %s, frame is: %d", _options.startMovie.startMovie.c_str(), _options.startMovie.startFrame);
 		} else if (key == "startup") {

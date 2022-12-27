@@ -20,7 +20,7 @@
 
 #include "common/archive.h"
 #include "common/stream.h"
-#include "common/unzip.h"
+#include "common/compression/unzip.h"
 #include "common/macresman.h"
 #include "graphics/fonts/bdf.h"
 #include "graphics/fonts/macfont.h"
@@ -367,7 +367,7 @@ void MacFontManager::loadFonts(Common::MacResManager *fontFile) {
 				familyName = cleanFontName(familyName);
 			}
 
-			Graphics::MacFontFamily *fontFamily = new MacFontFamily();
+			Graphics::MacFontFamily *fontFamily = new MacFontFamily(familyName);
 			fontFamily->load(*fond);
 
 			Common::Array<Graphics::MacFontFamily::AsscEntry> *assoc = fontFamily->getAssocTable();

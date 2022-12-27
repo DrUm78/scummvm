@@ -70,7 +70,8 @@ enum {
 	// the screen effect (like sound interrupts running,
 	// forcing the SCUMM timer to a lower frequency).
 	// I have added an extra quarter frame to emulate that.
-	kPictureDelay = 4
+	kPictureDelay = 4,
+	kC64Delay = 6
 };
 
 #define NUM_SHAKE_POSITIONS 8
@@ -2237,18 +2238,39 @@ bool Gdi::drawStrip(byte *dstPtr, VirtScreen *vs, int x, int y, const int width,
 	// version makes the text more readable by giving it a black outline.
 
 	else if (_vm->_game.id == GID_MONKEY &&
+			!(_vm->_game.features & GF_ULTIMATE_TALKIE) &&
 			_vm->_game.platform != Common::kPlatformSegaCD &&
 			_vm->_game.platform != Common::kPlatformFMTowns &&
 			_vm->_currentRoom == 36 &&
 			vs->number == kMainVirtScreen &&
 			y == 8 && x >= 7 && x <= 30 && height == 88 &&
-			strcmp(_vm->_game.variant, "SE Talkie") != 0 &&
 			_vm->_enableEnhancements) {
 		_roomPalette[47] = 15;
 
 		byte result = decompressBitmap(dstPtr, vs->pitch, smap_ptr + offset, height);
 
 		_roomPalette[47] = 47;
+		return result;
+	}
+
+	// WORKAROUND: In the French VGA floppy version of MI1, the easter egg
+	// poking fun at Sierra has a dark blue background instead of white,
+	// which causes similar legibility issues (the other VGA floppy
+	// translations are fine, and the French VGA Amiga and CD releases
+	// fixed this).
+
+	else if (_vm->_game.id == GID_MONKEY_VGA &&
+			_vm->_language == Common::FR_FRA &&
+			_vm->_game.platform != Common::kPlatformAmiga &&
+			_vm->_currentRoom == 11 &&
+			vs->number == kMainVirtScreen &&
+			y == 24 && x >= 28 && x <= 52 && height == 56 &&
+			_vm->_enableEnhancements) {
+		_roomPalette[1] = 15;
+
+		byte result = decompressBitmap(dstPtr, vs->pitch, smap_ptr + offset, height);
+
+		_roomPalette[1] = 1;
 		return result;
 	}
 
@@ -3762,55 +3784,24 @@ void Gdi::drawStrip3DO(byte *dst, int dstPitch, const byte *src, int height, con
 	} while (0)
 
 void Gdi::drawStripComplex(byte *dst, int dstPitch, const byte *src, int height, const bool transpCheck) const {
-	byte color = *src++;
-	uint bits = *src++;
-	byte cl = 8;
-	byte bit;
-	byte incm, reps;
+	byte color;
+	MajMinCodec majMin;
 
-	do {
-		int x = 8;
-		do {
-			FILL_BITS;
+	majMin.setupBitReader(_decomp_shr, src);
+
+	byte lineBuffer[8];
+	memset(lineBuffer, 0, 8);
+
+	while (height--) {
+		majMin.decodeLine(lineBuffer, 8, 1);
+		for (byte i = 0; i < 8; i ++) {
+			color = lineBuffer[i];
 			if (!transpCheck || color != _transparentColor)
 				writeRoomColor(dst, color);
 			dst += _vm->_bytesPerPixel;
-
-		againPos:
-			if (!READ_BIT) {
-			} else if (!READ_BIT) {
-				FILL_BITS;
-				color = bits & _decomp_mask;
-				bits >>= _decomp_shr;
-				cl -= _decomp_shr;
-			} else {
-				incm = (bits & 7) - 4;
-				cl -= 3;
-				bits >>= 3;
-				if (incm) {
-					color += incm;
-				} else {
-					FILL_BITS;
-					reps = bits & 0xFF;
-					do {
-						if (!--x) {
-							x = 8;
-							dst += dstPitch - 8 * _vm->_bytesPerPixel;
-							if (!--height)
-								return;
-						}
-						if (!transpCheck || color != _transparentColor)
-							writeRoomColor(dst, color);
-						dst += _vm->_bytesPerPixel;
-					} while (--reps);
-					bits >>= 8;
-					bits |= (*src++) << (cl - 8);
-					goto againPos;
-				}
-			}
-		} while (--x);
+		}
 		dst += dstPitch - 8 * _vm->_bytesPerPixel;
-	} while (--height);
+	}
 }
 
 void Gdi::drawStripBasicH(byte *dst, int dstPitch, const byte *src, int height, const bool transpCheck) const {
@@ -4188,10 +4179,6 @@ void ScummEngine::fadeOut(int effect) {
 		}
 	}
 
-	// Update the palette at the end (once we faded to black) to avoid
-	// some nasty effects when the palette is changed
-	updatePalette();
-
 	_screenEffectFlag = false;
 }
 
@@ -4215,7 +4202,9 @@ void ScummEngine::transitionEffect(int a) {
 	const int height = MIN((int)_virtscr[kMainVirtScreen].h, _screenHeight);
 
 	if (VAR_FADE_DELAY == 0xFF) {
-		if (_game.version >= 2) {
+		if (_game.platform == Common::kPlatformC64) {
+			delay = kC64Delay;
+		} else if (_game.version >= 2) {
 			delay = kPictureDelay;
 		} else {
 			delay = kNoDelay;
@@ -4607,6 +4596,70 @@ void ScummEngine::updateScreenShakeEffect() {
 		_shakeTickCounter += ((1000000 / _shakeTimerRate) * 8);
 		_shakeNextTick += (_shakeTickCounter / 1000);
 		_shakeTickCounter %= 1000;
+	}
+}
+
+void MajMinCodec::setupBitReader(byte shift, const byte *src) {
+	_majMinData.repeatMode = false;
+	_majMinData.numBits = 16;
+	_majMinData.shift = shift;
+	_majMinData.color = *src;
+	_majMinData.bits = (*(src + 1) | *(src + 2) << 8);
+	_majMinData.dataPtr = src + 3;
+}
+
+#define MAJMIN_FILL_BITS()                                        \
+		if (_majMinData.numBits <= 8) {                                \
+		  _majMinData.bits |= (*_majMinData.dataPtr++) << _majMinData.numBits;   \
+		  _majMinData.numBits += 8;                                    \
+		}
+
+#define MAJMIN_EAT_BITS(n)                                        \
+		_majMinData.numBits -= (n);                                    \
+		_majMinData.bits >>= (n);
+
+byte MajMinCodec::readBits(byte n) {
+	MAJMIN_FILL_BITS();
+	byte _value = _majMinData.bits & ((1 << n) - 1);
+	MAJMIN_EAT_BITS(n);
+	return _value;
+}
+
+void MajMinCodec::skipData(int32 numbytes) {
+	decodeLine(nullptr, numbytes, 0);
+}
+
+void MajMinCodec::decodeLine(byte *buf, int32 numbytes, int32 dir) {
+	byte diff;
+
+	while (numbytes != 0) {
+		if (buf) {
+			*buf = _majMinData.color;
+			buf += dir;
+		}
+
+		if (!_majMinData.repeatMode) {
+			if (readBits(1)) {
+				if (readBits(1)) {
+					diff = readBits(3) - 4;
+					if (diff) {
+						// A color change
+						_majMinData.color += diff;
+					} else {
+						// Color does not change, but rather identical pixels get repeated
+						_majMinData.repeatMode = true;
+						_majMinData.repeatCount = readBits(8) - 1;
+					}
+				} else {
+					_majMinData.color = readBits(_majMinData.shift);
+				}
+			}
+		} else {
+			if (--_majMinData.repeatCount == 0) {
+				_majMinData.repeatMode = false;
+			}
+		}
+		numbytes--;
 	}
 }
 

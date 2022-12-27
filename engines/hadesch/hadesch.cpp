@@ -24,14 +24,14 @@
 #include "common/debug-channels.h"
 #include "common/error.h"
 #include "common/events.h"
-#include "common/ini-file.h"
+#include "common/formats/ini-file.h"
 #include "common/stream.h"
 #include "common/system.h"
 #include "common/file.h"
 #include "common/keyboard.h"
 #include "common/macresman.h"
 #include "common/util.h"
-#include "common/zlib.h"
+#include "common/compression/gzio.h"
 #include "common/config-manager.h"
 
 #include "engines/advancedDetector.h"
@@ -48,7 +48,7 @@
 
 #include "graphics/palette.h"
 #include "common/memstream.h"
-#include "common/winexe_pe.h"
+#include "common/formats/winexe_pe.h"
 #include "common/substream.h"
 #include "common/md5.h"
 #include "graphics/wincursor.h"
@@ -129,8 +129,6 @@ void HadeschEngine::newGame() {
 	moveToRoom(kWallOfFameRoom);
 }
 
-#if defined(USE_ZLIB)
-
 struct WiseFile {
 	uint start;
 	uint end;
@@ -161,8 +159,8 @@ Common::MemoryReadStream *readWiseFile(Common::File &setupFile, const struct Wis
 	byte *uncompressedBuffer = new byte[wiseFile.uncompressedLength];
 	setupFile.seek(wiseFile.start);
 	setupFile.read(compressedBuffer, wiseFile.end - wiseFile.start - 4);
-	if (!Common::inflateZlibHeaderless(uncompressedBuffer, wiseFile.uncompressedLength,
-					   compressedBuffer, wiseFile.end - wiseFile.start - 4)) {
+	if (Common::GzioReadStream::deflateDecompress(uncompressedBuffer, wiseFile.uncompressedLength,
+					   compressedBuffer, wiseFile.end - wiseFile.start - 4) != (int)wiseFile.uncompressedLength) {
 		debug("wise inflate failed");
 		delete[] compressedBuffer;
 		delete[] uncompressedBuffer;
@@ -172,7 +170,6 @@ Common::MemoryReadStream *readWiseFile(Common::File &setupFile, const struct Wis
 	delete[] compressedBuffer;
 	return new Common::MemoryReadStream(uncompressedBuffer, wiseFile.uncompressedLength);
 }
-#endif
 
 Common::ErrorCode HadeschEngine::loadWindowsCursors(const Common::ScopedPtr<Common::PEResources>& exe) {
 	for (unsigned i = 0; i < ARRAYSIZE(cursorids); i++) {
@@ -231,7 +228,6 @@ Common::ErrorCode HadeschEngine::loadCursors() {
 		return Common::kNoError;
 	}
 
-#if defined(USE_ZLIB)
 	Common::File setupFile;
 	if (setupFile.open("Setup.exe")) {
 		uint len = setupFile.size();
@@ -260,7 +256,6 @@ Common::ErrorCode HadeschEngine::loadCursors() {
 			}
 		}
 	}
-#endif
 
 	debug("Cannot open hadesch.exe");
 	return Common::kUnsupportedGameidError;
@@ -495,10 +490,10 @@ Common::Error HadeschEngine::run() {
 		};
 		debug("HadeschEngine: loading wd.pod");
 		for (uint i = 0; i < ARRAYSIZE(wdpodpaths); ++i) {
-			Common::SharedPtr<Common::File> file(new Common::File());
-			if (file->open(wdpodpaths[i])) {
+			Common::SharedPtr<Common::SeekableReadStream> stream(Common::MacResManager::openFileOrDataFork(wdpodpaths[i]));
+			if (stream) {
 				_wdPodFile = Common::SharedPtr<PodFile>(new PodFile("WD.POD"));
-				_wdPodFile->openStore(file);
+				_wdPodFile->openStore(stream);
 				break;
 			}
 		}
@@ -516,8 +511,8 @@ Common::Error HadeschEngine::run() {
 	// on cdScenePath
 	const char *const scenepaths[] = {"CDAssets/", "Scenes/"};
 	for (uint i = 0; i < ARRAYSIZE(scenepaths); ++i) {
-		Common::ScopedPtr<Common::File> file(new Common::File());
-		if (file->open(Common::String(scenepaths[i]) + "OLYMPUS/OL.POD")) {
+		Common::ScopedPtr<Common::SeekableReadStream> stream(Common::MacResManager::openFileOrDataFork(Common::String(scenepaths[i]) + "OLYMPUS/OL.POD"));
+		if (stream) {
 			_cdScenesPath = scenepaths[i];
 			break;
 		}

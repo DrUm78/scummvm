@@ -29,18 +29,31 @@ namespace Ultima {
 namespace Ultima8 {
 
 class SlidingWidget : public Gump {
+protected:
+	Rect _dragBounds;
+
 public:
 	ENABLE_RUNTIME_CLASSTYPE()
 
 	SlidingWidget();
-	SlidingWidget(int x, int y, const Shape *shape, uint32 frameNum);
+	SlidingWidget(int x, int y, FrameID frame, const Rect &dragBounds);
 	~SlidingWidget() override;
+
+	int getValueForRange(int min, int max);
+	void setValueForRange(int value, int min, int max);
 
 	void InitGump(Gump *newparent, bool take_focus = true) override;
 	uint16 TraceObjId(int32 mx, int32 my) override;
 
+	void Move(int32 x, int32 y) override;
+	void onDrag(int32 mx, int32 my) override;
+
 	bool loadData(Common::ReadStream *rs, uint32 version);
 	void saveData(Common::WriteStream *ws) override;
+
+	enum Message {
+		DRAGGING = 0
+	};
 };
 
 } // End of namespace Ultima8

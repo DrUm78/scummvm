@@ -32,7 +32,6 @@
 #include "backends/keymapper/keymapper.h"
 #include "backends/keymapper/remap-widget.h"
 
-#include "common/achievements.h"
 #include "common/fs.h"
 #include "common/config-manager.h"
 #include "common/gui_options.h"
@@ -44,6 +43,8 @@
 #include "common/updates.h"
 #include "common/util.h"
 #include "common/text-to-speech.h"
+
+#include "engines/achievements.h"
 
 #include "audio/mididrv.h"
 #include "audio/musicplugin.h"
@@ -252,7 +253,15 @@ void OptionsDialog::init() {
 	_guioptions.clear();
 	if (ConfMan.hasKey("guioptions", _domain)) {
 		_guioptionsString = ConfMan.get("guioptions", _domain);
-		_guioptions = parseGameGUIOptions(_guioptionsString);
+
+		const Plugin *plugin = nullptr;
+		EngineMan.findTarget(_domain, &plugin);
+		if (plugin) {
+			const MetaEngineDetection &metaEngineDetection = plugin->get<MetaEngineDetection>();
+			_guioptions = metaEngineDetection.parseAndCustomizeGuiOptions(_guioptionsString, _domain);
+		} else {
+			_guioptions = parseGameGUIOptions(_guioptionsString);
+		}
 	}
 }
 
@@ -261,7 +270,15 @@ void OptionsDialog::build() {
 	_guioptions.clear();
 	if (ConfMan.hasKey("guioptions", _domain)) {
 		_guioptionsString = ConfMan.get("guioptions", _domain);
-		_guioptions = parseGameGUIOptions(_guioptionsString);
+
+		const Plugin *plugin = nullptr;
+		EngineMan.findTarget(_domain, &plugin);
+		if (plugin) {
+			const MetaEngineDetection &metaEngineDetection = plugin->get<MetaEngineDetection>();
+			_guioptions = metaEngineDetection.parseAndCustomizeGuiOptions(_guioptionsString, _domain);
+		} else {
+			_guioptions = parseGameGUIOptions(_guioptionsString);
+		}
 	}
 
 	// Control options
@@ -416,7 +433,7 @@ void OptionsDialog::build() {
 		if (ConfMan.hasKey("antialiasing", _domain)) {
 			_antiAliasPopUp->setSelectedTag(ConfMan.getInt("antialiasing", _domain));
 		} else {
-			_antiAliasPopUp->setSelectedTag(-1);
+			_antiAliasPopUp->setSelectedTag(uint32(-1));
 		}
 	}
 
@@ -835,7 +852,7 @@ void OptionsDialog::apply() {
 				shader = ConfMan.get("shader", _domain);
 
 			// If shader was changed, show the test dialog
-			if (previousShader != shader && !shader.empty()) {
+			if (previousShader != shader && !shader.empty() && shader != "default") {
 				if (!testGraphicsSettings()) {
 					if (previousShader == _c("None", "shader"))
 						previousShader = "default";
@@ -1517,7 +1534,7 @@ void OptionsDialog::addGraphicControls(GuiObject *boss, const Common::String &pr
 	const Common::RenderModeDescription *rm = Common::g_renderModes;
 	for (; rm->code; ++rm) {
 		Common::String renderGuiOption = Common::renderMode2GUIO(rm->id);
-		if ((_domain == Common::ConfigManager::kApplicationDomain) || (_domain != Common::ConfigManager::kApplicationDomain && !renderingTypeDefined) || (_guioptions.contains(renderGuiOption)))
+		if ((_domain == Common::ConfigManager::kApplicationDomain) || (_domain != Common::ConfigManager::kApplicationDomain && renderingTypeDefined && _guioptions.contains(renderGuiOption)))
 			_renderModePopUp->appendEntry(_c(rm->description, context), rm->id);
 	}
 
@@ -1584,7 +1601,7 @@ void OptionsDialog::addGraphicControls(GuiObject *boss, const Common::String &pr
 
 	_antiAliasPopUpDesc = new StaticTextWidget(boss, prefix + "grAntiAliasPopupDesc", _("3D Anti-aliasing:"));
 	_antiAliasPopUp = new PopUpWidget(boss, prefix + "grAntiAliasPopup");
-	_antiAliasPopUp->appendEntry(_("<default>"), -1);
+	_antiAliasPopUp->appendEntry(_("<default>"), uint32(-1));
 	_antiAliasPopUp->appendEntry("");
 	_antiAliasPopUp->appendEntry(_("Disabled"), 0);
 	const Common::Array<uint> levels = g_system->getSupportedAntiAliasingLevels();
@@ -2434,8 +2451,8 @@ void GlobalOptionsDialog::addMiscControls(GuiObject *boss, const Common::String 
 
 	if (!g_system->hasFeature(OSystem::kFeatureNoQuit)) {
 		_guiReturnToLauncherAtExit = new CheckboxWidget(boss, prefix + "ReturnToLauncherAtExit",
-			_("Always return to the launcher when leaving a game"),
-			_("Always return to the launcher when leaving a game instead of closing ScummVM.")
+			_("Return to the launcher when leaving a game"),
+			_("Return to the launcher when leaving a game instead of closing ScummVM\n(this feature is not supported by all games).")
 		);
 
 		_guiReturnToLauncherAtExit->setState(ConfMan.getBool("gui_return_to_launcher_at_exit", _domain));

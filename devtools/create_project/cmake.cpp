@@ -29,8 +29,8 @@
 
 namespace CreateProjectTool {
 
-CMakeProvider::CMakeProvider(StringList &global_warnings, std::map<std::string, StringList> &project_warnings, const int version)
-	: ProjectProvider(global_warnings, project_warnings, version) {
+CMakeProvider::CMakeProvider(StringList &global_warnings, std::map<std::string, StringList> &project_warnings, StringList &global_errors, const int version)
+	: ProjectProvider(global_warnings, project_warnings, global_errors, version) {
 }
 
 const CMakeProvider::Library *CMakeProvider::getLibraryFromFeature(const char *feature, bool useSDL2) const {
@@ -341,6 +341,9 @@ void CMakeProvider::writeDefines(const BuildSetup &setup, std::ofstream &output)
 	output << "\tadd_definitions(-DWIN32)\n";
 	output << "else()\n";
 	output << "\tadd_definitions(-DPOSIX)\n";
+	output << "\t# Hope for the best regarding fseeko and 64-bit off_t\n";
+	output << "\tadd_definitions(-D_FILE_OFFSET_BITS=64)\n";
+	output << "\tadd_definitions(-DHAS_FSEEKO_OFFT_64)\n";
 	output << "endif()\n";
 
 	output << "add_definitions(-DSDL_BACKEND)\n";

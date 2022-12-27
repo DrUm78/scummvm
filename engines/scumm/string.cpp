@@ -36,6 +36,7 @@
 #endif
 #include "scumm/resource.h"
 #include "scumm/scumm.h"
+#include "scumm/scumm_v2.h"
 #include "scumm/scumm_v6.h"
 #include "scumm/scumm_v7.h"
 #include "scumm/verbs.h"
@@ -706,6 +707,102 @@ void ScummEngine::fakeBidiString(byte *ltext, bool ignoreVerb, int ltextSize) co
 	free(stack);
 }
 
+void ScummEngine_v2::drawSentence() {
+	Common::Rect sentenceline;
+	const byte *temp;
+	int slot = getVerbSlot(VAR(VAR_SENTENCE_VERB), 0);
+
+	if (!((_userState & USERSTATE_IFACE_SENTENCE) ||
+		  (_game.platform == Common::kPlatformNES && (_userState & USERSTATE_IFACE_ALL))))
+		return;
+
+	if (getResourceAddress(rtVerb, slot))
+		_sentenceBuf = (char *)getResourceAddress(rtVerb, slot);
+	else
+		return;
+
+	if (VAR(VAR_SENTENCE_OBJECT1) > 0) {
+		temp = getObjOrActorName(VAR(VAR_SENTENCE_OBJECT1));
+		if (temp) {
+			_sentenceBuf += " ";
+			_sentenceBuf += (const char *)temp;
+		}
+
+		// For V1 games, the engine must compute the preposition.
+		// In all other Scumm versions, this is done by the sentence script.
+		if ((_game.id == GID_MANIAC && _game.version == 1 && !(_game.platform == Common::kPlatformNES)) && (VAR(VAR_SENTENCE_PREPOSITION) == 0)) {
+			if (_verbs[slot].prep == 0xFF) {
+				byte *ptr = getOBCDFromObject(VAR(VAR_SENTENCE_OBJECT1));
+				assert(ptr);
+				VAR(VAR_SENTENCE_PREPOSITION) = (*(ptr + 12) >> 5);
+			} else
+				VAR(VAR_SENTENCE_PREPOSITION) = _verbs[slot].prep;
+		}
+	}
+
+	if (0 < VAR(VAR_SENTENCE_PREPOSITION) && VAR(VAR_SENTENCE_PREPOSITION) <= 4) {
+		drawPreposition(VAR(VAR_SENTENCE_PREPOSITION));
+	}
+
+	if (VAR(VAR_SENTENCE_OBJECT2) > 0) {
+		temp = getObjOrActorName(VAR(VAR_SENTENCE_OBJECT2));
+		if (temp) {
+			_sentenceBuf += " ";
+			_sentenceBuf += (const char *)temp;
+		}
+	}
+
+	_string[2].charset = 1;
+	_string[2].ypos = _virtscr[kVerbVirtScreen].topline;
+	_string[2].xpos = 0;
+	_string[2].right = _virtscr[kVerbVirtScreen].w - 1;
+	if (_game.platform == Common::kPlatformNES) {
+		_string[2].xpos = 16;
+		_string[2].color = 0;
+	} else if (_game.platform == Common::kPlatformC64) {
+		_string[2].color = 16;
+	} else {
+		_string[2].color = 13;
+	}
+
+	byte string[80];
+	const char *ptr = _sentenceBuf.c_str();
+	int i = 0, len = 0;
+
+	// Maximum length of printable characters
+	int maxChars = (_game.platform == Common::kPlatformNES) ? 60 : 40;
+	while (*ptr) {
+		if (*ptr != '@')
+			len++;
+		if (len > maxChars) {
+			break;
+		}
+
+		string[i++] = *ptr++;
+
+		if (_game.platform == Common::kPlatformNES && len == 30) {
+			string[i++] = 0xFF;
+			string[i++] = 8;
+		}
+	}
+	string[i] = 0;
+
+	if (_game.platform == Common::kPlatformNES) {
+		sentenceline.top = _virtscr[kVerbVirtScreen].topline;
+		sentenceline.bottom = _virtscr[kVerbVirtScreen].topline + 16;
+		sentenceline.left = 16;
+		sentenceline.right = _virtscr[kVerbVirtScreen].w - 1;
+	} else {
+		sentenceline.top = _virtscr[kVerbVirtScreen].topline;
+		sentenceline.bottom = _virtscr[kVerbVirtScreen].topline + 8;
+		sentenceline.left = 0;
+		sentenceline.right = _virtscr[kVerbVirtScreen].w - 1;
+	}
+	restoreBackground(sentenceline);
+
+	drawString(2, (byte *)string);
+}
+
 void ScummEngine::CHARSET_1() {
 	Actor *a;
 	if (_game.heversion >= 70 && _haveMsg == 3) {
@@ -941,6 +1038,7 @@ void ScummEngine::drawString(int a, const byte *msg) {
 	byte fontHeight = 0;
 	uint color;
 	int code = (_game.heversion >= 80) ? 127 : 64;
+	bool isV3Towns = _game.version == 3 && _game.platform == Common::kPlatformFMTowns;
 
 	// drawString is not used in SCUMM v7 and v8
 	assert(_game.version < 7);
@@ -1101,6 +1199,12 @@ void ScummEngine::drawString(int a, const byte *msg) {
 				if (is2ByteCharacter(_language, c))
 					c += buf[i++] * 256;
 			}
+
+			// With the code above, we risk missing the termination character.
+			// This happens at least for the restart prompt message on INDY3 Towns JAP.
+			if (isV3Towns && i > 1 && buf[i - 1] == 0)
+				break;
+
 			_charset->printChar(c, true);
 			_charset->_blitAlso = false;
 		}

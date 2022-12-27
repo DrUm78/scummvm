@@ -52,19 +52,14 @@
 #endif
 
 #ifndef FLT_MIN
-	#define FLT_MIN 1E-37
+	#define FLT_MIN 1E-37f
 #endif
 
 #ifndef FLT_MAX
-	#define FLT_MAX 1E+37
+	#define FLT_MAX 1E+37f
 #endif
 
 namespace Common {
-
-/** A complex number. */
-struct Complex {
-	float re, im;
-};
 
 #if defined(__GNUC__)
 inline int intLog2(uint32 v) {

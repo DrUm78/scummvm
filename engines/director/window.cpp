@@ -48,10 +48,10 @@ Window::Window(int id, bool scrollable, bool resizable, bool editable, Graphics:
 	_stageColor = _wm->_colorBlack;
 	_puppetTransition = nullptr;
 	_soundManager = new DirectorSound(this);
+	_lingoState = new LingoState;
 
 	_currentMovie = nullptr;
 	_mainArchive = nullptr;
-	_macBinary = nullptr;
 	_nextMovie.frameI = -1;
 	_newMovieStarted = true;
 
@@ -61,21 +61,14 @@ Window::Window(int id, bool scrollable, bool resizable, bool editable, Graphics:
 	_windowType = -1;
 	_titleVisible = true;
 	updateBorderType();
-
-	_retPC = 0;
-	_retScript = nullptr;
-	_retContext = nullptr;
-	_retFreezeContext = false;
-	_retLocalVars = nullptr;
 }
 
 Window::~Window() {
+	delete _lingoState;
 	delete _soundManager;
 	delete _currentMovie;
-	if (_macBinary) {
-		delete _macBinary;
-		_macBinary = nullptr;
-	}
+	for (uint i = 0; i < _frozenLingoStates.size(); i++)
+		delete _frozenLingoStates[i];
 	if (_puppetTransition)
 		delete _puppetTransition;
 }
@@ -435,6 +428,27 @@ Common::String Window::getSharedCastPath() {
 	}
 
 	return Common::String();
+}
+
+void Window::freezeLingoState() {
+	_frozenLingoStates.push_back(_lingoState);
+	_lingoState = new LingoState;
+	debugC(kDebugLingoExec, 3, "Freezing Lingo state, depth %d", _frozenLingoStates.size());
+}
+
+void Window::thawLingoState() {
+	if (_frozenLingoStates.empty()) {
+		warning("Tried to thaw when there's no frozen state, ignoring");
+		return;
+	}
+	if (!_lingoState->callstack.empty()) {
+		warning("Can't thaw a Lingo state in mid-execution, ignoring");
+		return;
+	}
+	delete _lingoState;
+	debugC(kDebugLingoExec, 3, "Thawing Lingo state, depth %d", _frozenLingoStates.size());
+	_lingoState = _frozenLingoStates.back();
+	_frozenLingoStates.pop_back();
 }
 
 } // End of namespace Director

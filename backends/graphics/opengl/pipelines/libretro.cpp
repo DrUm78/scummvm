@@ -115,17 +115,85 @@ static const char *g_compatFragment =
 		"#endif\n"
 	"#endif\n";
 
+/* This TextureTarget handles the scaling of coordinates from the window coordinates space
+ * to the input coordinates space */
+class LibRetroTextureTarget : public TextureTarget {
+public:
+	bool setScaledSize(uint width, uint height, const Common::Rect &scalingRect) {
+		GLTexture *texture = getTexture();
+		if (!texture->setSize(width, height)) {
+			return false;
+		}
+
+		const uint texWidth  = texture->getWidth();
+		const uint texHeight = texture->getHeight();
+
+		// Set viewport dimensions.
+		_viewport[0] = 0;
+		_viewport[1] = 0;
+		_viewport[2] = texWidth;
+		_viewport[3] = texHeight;
+
+		const float ratioW = (float)width  / scalingRect.width();
+		const float ratioH = (float)height / scalingRect.height();
+
+		// Setup scaling projection matrix.
+		// This projection takes window screen coordinates and converts it to input coordinates normalized
+		_projectionMatrix(0, 0) = 2.f * ratioW / texWidth;
+		_projectionMatrix(0, 1) = 0.f;
+		_projectionMatrix(0, 2) = 0.f;
+		_projectionMatrix(0, 3) = 0.f;
+
+		_projectionMatrix(1, 0) = 0.f;
+		_projectionMatrix(1, 1) = 2.f * ratioH / texHeight;
+		_projectionMatrix(1, 2) = 0.f;
+		_projectionMatrix(1, 3) = 0.f;
+
+		_projectionMatrix(2, 0) = 0.f;
+		_projectionMatrix(2, 1) = 0.f;
+		_projectionMatrix(2, 2) = 0.f;
+		_projectionMatrix(2, 3) = 0.f;
+
+		_projectionMatrix(3, 0) = -1.f - (2.f * scalingRect.left) * ratioW / texWidth;
+		_projectionMatrix(3, 1) = -1.f - (2.f * scalingRect.top) * ratioH / texHeight;
+		_projectionMatrix(3, 2) = 0.0f;
+		_projectionMatrix(3, 3) = 1.0f;
+
+		// Directly apply changes when we are active.
+		if (isActive()) {
+			applyViewport();
+			applyProjectionMatrix();
+		}
+		return true;
+	}
+};
+
+/* This Pipeline is used by the Framebuffer objects in the LibRetro passes.
+ * It does nothing as everything is already handled by us. */
+class FakePipeline : public Pipeline {
+public:
+	FakePipeline() {}
+	void setColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a) override { }
+	void setProjectionMatrix(const Math::Matrix4 &projectionMatrix) override {}
+protected:
+	void activateInternal() override {}
+	void deactivateInternal() override {}
+	void drawTextureInternal(const GLTexture &texture, const GLfloat *coordinates, const GLfloat *texcoords) override { }
+};
+
 LibRetroPipeline::LibRetroPipeline()
-	: ShaderPipeline(ShaderMan.query(ShaderManager::kDefault)),
-	  _shaderPreset(nullptr), _applyProjectionChanges(false),
-	  _inputWidth(0), _inputHeight(0), _outputWidth(0), _outputHeight(0),
+	: _inputPipeline(ShaderMan.query(ShaderManager::kDefault)),
+	  _outputPipeline(ShaderMan.query(ShaderManager::kDefault)),
+	  _needsScaling(false), _shaderPreset(nullptr), _linearFiltering(false),
+	  _currentTarget(uint(-1)), _inputWidth(0), _inputHeight(0),
 	  _isAnimated(false), _frameCount(0) {
 }
 
 LibRetroPipeline::LibRetroPipeline(const Common::FSNode &shaderPreset)
-	: ShaderPipeline(ShaderMan.query(ShaderManager::kDefault)),
-	  _shaderPreset(nullptr), _applyProjectionChanges(false),
-	  _inputWidth(0), _inputHeight(0), _outputWidth(0), _outputHeight(0),
+	: _inputPipeline(ShaderMan.query(ShaderManager::kDefault)),
+	  _outputPipeline(ShaderMan.query(ShaderManager::kDefault)),
+	  _needsScaling(false), _shaderPreset(nullptr), _linearFiltering(false),
+	  _currentTarget(uint(-1)), _inputWidth(0), _inputHeight(0),
 	  _isAnimated(false), _frameCount(0) {
 	open(shaderPreset);
 }
@@ -134,69 +202,143 @@ LibRetroPipeline::~LibRetroPipeline() {
 	close();
 }
 
-void LibRetroPipeline::drawTexture(const GLTexture &texture, const GLfloat *coordinates, const GLfloat *texcoords) {
-	Framebuffer *const targetBuffer = _activeFramebuffer;
-
-	// Set input texture for 1st pass to texture to draw.
-	_passes[0].inputTexture = &texture;
-
-	// Get back screen size from texture coordinates.
-	// FIXME: We assume a fixed set of triangle strip
-	GLfloat w, h;
-	w = coordinates[6] - coordinates[0];
-	h = coordinates[7] - coordinates[1];
-	setOutputSize(w, h);
-
-	// In case texture dimensions or viewport dimensions changed, we need to
-	// update the pipeline's state.
-	if (   texture.getLogicalWidth() != _inputWidth
-		|| texture.getLogicalHeight() != _inputHeight
-		|| _outputSizeChanged) {
-		_outputSizeChanged = false;
-		_inputWidth  = texture.getLogicalWidth();
-		_inputHeight = texture.getLogicalHeight();
-
-		setPipelineState();
+/** Small helper to overcome that texture passed to drawTexture is const
+ * This is not that clean but this allows to keep the OpenGLGraphicsManager code simple
+ */
+static void setLinearFiltering(GLuint glTexture, bool enable) {
+	GLuint glFilter;
+	if (enable) {
+		glFilter = GL_LINEAR;
+	} else {
+		glFilter = GL_NEAREST;
 	}
+
+	GL_CALL(glBindTexture(GL_TEXTURE_2D, glTexture));
+
+	GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glFilter));
+	GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glFilter));
+}
+
+void LibRetroPipeline::drawTextureInternal(const GLTexture &texture, const GLfloat *coordinates, const GLfloat *texcoords) {
+	if (!_needsScaling) {
+		_outputPipeline.drawTexture(texture, coordinates, texcoords);
+		return;
+	}
+
+	// Disable linear filtering: we apply it after merging all to be scaled surfaces
+	setLinearFiltering(texture.getGLTexture(), false);
+
+	/* OpenGLGraphicsManager only knows about _activeFramebuffer and modify framebuffer here
+	 * So let's synchronize our _inputTargets with it.
+	 * Don't synchronize the scissor test as coordinates are wrong and we should not need it*/
+	_inputTargets[_currentTarget].copyRenderStateFrom(*_activeFramebuffer,
+			Framebuffer::kCopyMaskClearColor | Framebuffer::kCopyMaskBlendState);
+
+	/* The backend sends us the coordinates in screen coordinates system
+	 * So, when we are before libretro scaling, we need to scale back coordinates
+	 * to our own coordinates system */
+	_inputPipeline.drawTexture(texture, coordinates, texcoords);
+
+	if (_linearFiltering) {
+		// Enable back linear filtering as if nothing happened
+		setLinearFiltering(texture.getGLTexture(), true);
+	}
+}
+
+void LibRetroPipeline::beginScaling() {
+	if (_shaderPreset != nullptr) {
+		_needsScaling = true;
+		_inputTargets[_currentTarget].getTexture()->enableLinearFiltering(_linearFiltering);
+	}
+}
+
+void LibRetroPipeline::finishScaling() {
+	if (!_needsScaling) {
+		return;
+	}
+
+	/* As we have now finished to render everything in the input pipeline
+	 * we can do the render through all libretro passes */
 
 	// Now we can actually draw the texture with the setup passes.
 	for (PassArray::const_iterator i = _passes.begin(), end = _passes.end(); i != end; ++i) {
 		renderPass(*i);
 	}
 
-	// Finally, we need to render the result to the active framebuffer.
-	_applyProjectionChanges = true;
-	setFramebuffer(targetBuffer);
-	_applyProjectionChanges = false;
-
-	ShaderPipeline::activateInternal();
-	ShaderPipeline::drawTexture(*_passes[_passes.size() - 1].target->getTexture(), coordinates, texcoords);
-	ShaderPipeline::deactivateInternal();
-
+	// Prepare for the next frame
 	_frameCount++;
+
+	_currentTarget++;
+	if (_currentTarget >= _inputTargets.size()) {
+		_currentTarget = 0;
+	}
+	_passes[0].inputTexture = _inputTargets[_currentTarget].getTexture();
+
+	// Clear the output buffer.
+	_activeFramebuffer->activate(this);
+	// Disable scissor test for clearing, it will get enabled back when activating the output pipeline
+	GL_CALL(glDisable(GL_SCISSOR_TEST));
+	GL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+
+	// Finally, we need to render the result to the output pipeline
+	_outputPipeline.setFramebuffer(_activeFramebuffer);
+	_outputPipeline.activate();
+
+	/* In retroarch, the shader directly draws on the backbuffer while we drew on a texture
+	 * so everything is flipped when we draw this texture.
+	 * Use custom coordinates to do the flipping. */
+	GLfloat coordinates[4*2];
+	coordinates[0] = _outputRect.left;
+	coordinates[1] = _outputRect.bottom;
+
+	coordinates[2] = _outputRect.right;
+	coordinates[3] = _outputRect.bottom;
+
+	coordinates[4] = _outputRect.left;
+	coordinates[5] = _outputRect.top;
+
+	coordinates[6] = _outputRect.right;
+	coordinates[7] = _outputRect.top;
+
+	_outputPipeline.drawTexture(*_passes[_passes.size() - 1].target->getTexture(), coordinates);
+
+	_needsScaling = false;
 }
 
-void LibRetroPipeline::setProjectionMatrix(const GLfloat *projectionMatrix) {
-	if (_applyProjectionChanges) {
-		ShaderPipeline::setProjectionMatrix(projectionMatrix);
-	}
+void LibRetroPipeline::setDisplaySizes(uint inputWidth, uint inputHeight, const Common::Rect &outputRect) {
+	_inputWidth = inputWidth;
+	_inputHeight = inputHeight;
+	_outputRect = outputRect;
+
+	setPipelineState();
+}
+
+void LibRetroPipeline::setColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
+	_inputPipeline.setColor(r, g, b, a);
+	_outputPipeline.setColor(r, g, b, a);
+}
+
+void LibRetroPipeline::setProjectionMatrix(const Math::Matrix4 &projectionMatrix) {
 }
 
 void LibRetroPipeline::activateInternal() {
+	// Don't call Pipeline::activateInternal as our framebuffer is passed to _outputPipeline
+	if (_needsScaling) {
+		_inputPipeline.setFramebuffer(&_inputTargets[_currentTarget]);
+		_inputPipeline.activate();
+	} else {
+		_outputPipeline.setFramebuffer(_activeFramebuffer);
+		_outputPipeline.activate();
+	}
 }
 
 void LibRetroPipeline::deactivateInternal() {
-}
-
-void LibRetroPipeline::setOutputSize(uint outputWidth, uint outputHeight) {
-	_outputSizeChanged = (_outputWidth != outputWidth || _outputHeight != outputHeight);
-
-	// Save output dimensions.
-	_outputWidth  = outputWidth;
-	_outputHeight = outputHeight;
+	// Don't call Pipeline::deactivateInternal as our framebuffer is passed to _outputPipeline
 }
 
 bool LibRetroPipeline::open(const Common::FSNode &shaderPreset) {
+	close();
+
 	_shaderPreset = LibRetro::parsePreset(shaderPreset);
 	if (!_shaderPreset)
 		return false;
@@ -210,6 +352,8 @@ bool LibRetroPipeline::open(const Common::FSNode &shaderPreset) {
 		close();
 		return false;
 	}
+
+	setPipelineState();
 
 	return true;
 }
@@ -232,6 +376,12 @@ void LibRetroPipeline::close() {
 
 	delete _shaderPreset;
 	_shaderPreset = nullptr;
+
+	_isAnimated = false;
+	_needsScaling = false;
+
+	_inputTargets.resize(0);
+	_currentTarget = uint(-1);
 }
 
 static Common::FSNode getChildRecursive(const Common::FSNode &basePath, const Common::String &fileName) {
@@ -283,6 +433,11 @@ static void stripShaderParameters(char *source, UniformsMap &uniforms) {
 }
 
 bool LibRetroPipeline::loadPasses() {
+	// Error out if there are no passes
+	if (!_shaderPreset->passes.size()) {
+		return false;
+	}
+
 	// First of all, build the aliases list
 	Common::String aliasesDefines;
 	Common::StringArray aliases;
@@ -298,6 +453,7 @@ bool LibRetroPipeline::loadPasses() {
 	}
 
 	_isAnimated = false;
+	uint maxPrevCount = 0;
 
 	// parameters are shared among all passes so we load them first and apply them to all shaders
 	UniformsMap uniformParams;
@@ -409,6 +565,10 @@ bool LibRetroPipeline::loadPasses() {
 			texture->setWrapMode(i->wrapMode);
 			pass.inputTexture = texture;
 		}
+
+		if (pass.prevCount > maxPrevCount) {
+			maxPrevCount = pass.prevCount;
+		}
 	}
 
 	// Apply preset parameters last to override all others
@@ -423,26 +583,30 @@ bool LibRetroPipeline::loadPasses() {
 		}
 	}
 
+	// Create enough FBO for previous frames and current image
+	// All textures are created and destroyed at this moment
+	// FBOs are created on demand and destroyed here
+	_isAnimated |= (maxPrevCount > 0);
+
+	_inputTargets.resize(maxPrevCount + 1);
+
+	_currentTarget = 0;
+	_passes[0].inputTexture = _inputTargets[_currentTarget].getTexture();
 
 	// Now try to setup FBOs with some dummy size to make sure it could work
 	uint bakInputWidth = _inputWidth;
 	uint bakInputHeight = _inputHeight;
-	uint bakOutputWidth = _outputWidth;
-	uint bakOutputHeight = _outputHeight;
+	Common::Rect bakOutputRect = _outputRect;
 
 	_inputWidth = 320;
 	_inputHeight = 200;
-	_outputWidth = 640;
-	_outputHeight = 480;
+	_outputRect = Common::Rect(640, 480);
 
 	bool ret = setupFBOs();
 
 	_inputWidth = bakInputWidth;
 	_inputHeight = bakInputHeight;
-	_outputWidth = bakOutputWidth;
-	_outputHeight = bakOutputHeight;
-	// Force to reset everything at next draw
-	_outputSizeChanged = true;
+	_outputRect = bakOutputRect;
 
 	if (!ret) {
 		return false;
@@ -462,11 +626,18 @@ void LibRetroPipeline::setPipelineState() {
 }
 
 bool LibRetroPipeline::setupFBOs() {
+	// Setup the input targets sizes
+	for (Common::Array<LibRetroTextureTarget>::iterator it = _inputTargets.begin(); it != _inputTargets.end(); it++) {
+		if (!it->setScaledSize(_inputWidth, _inputHeight, _outputRect)) {
+			return false;
+		}
+	}
+
 	float sourceW = _inputWidth;
 	float sourceH = _inputHeight;
 
-	const float viewportW = _outputWidth;
-	const float viewportH = _outputHeight;
+	const float viewportW = _outputRect.width();
+	const float viewportH = _outputRect.height();
 
 	for (PassArray::size_type i = 0; i < _passes.size(); ++i) {
 		Pass &pass = _passes[i];
@@ -480,22 +651,38 @@ bool LibRetroPipeline::setupFBOs() {
 		}
 
 		// Store draw coordinates.
-		pass.vertexCoord[0] = 0;
-		pass.vertexCoord[1] = 0;
+		/* RetroArch draws the last pass directly on FB0 and adapts its vertex coordinates for this.
+		 * We don't se we should not have to take this into account but some shaders (like metacrt) ignore
+		 * the vertex coordinates while drawing and everything gets upside down.
+		 * So we act like RetroArch here and flip the texture when rendering on the output pipeline. */
+		if (i != _passes.size() - 1) {
+			pass.vertexCoord[0] = 0;
+			pass.vertexCoord[1] = 0;
 
-		pass.vertexCoord[2] = (uint)sourceW;
-		pass.vertexCoord[3] = 0;
+			pass.vertexCoord[2] = (uint)sourceW;
+			pass.vertexCoord[3] = 0;
 
-		pass.vertexCoord[4] = 0;
-		pass.vertexCoord[5] = (uint)sourceH;
+			pass.vertexCoord[4] = 0;
+			pass.vertexCoord[5] = (uint)sourceH;
 
-		pass.vertexCoord[6] = (uint)sourceW;
-		pass.vertexCoord[7] = (uint)sourceH;
+			pass.vertexCoord[6] = (uint)sourceW;
+			pass.vertexCoord[7] = (uint)sourceH;
+		} else {
+			pass.vertexCoord[0] = 0;
+			pass.vertexCoord[1] = (uint)sourceH;
+
+			pass.vertexCoord[2] = (uint)sourceW;
+			pass.vertexCoord[3] = (uint)sourceH;
+
+			pass.vertexCoord[4] = 0;
+			pass.vertexCoord[5] = 0;
+
+			pass.vertexCoord[6] = (uint)sourceW;
+			pass.vertexCoord[7] = 0;
+		}
 
 		// Set projection matrix in passes's shader.
-		Math::Matrix4 m4;
-		m4.setData(pass.target->getProjectionMatrix());
-		pass.shader->setUniform("MVPMatrix", m4);
+		pass.shader->setUniform("MVPMatrix", pass.target->getProjectionMatrix());
 	}
 	return true;
 }
@@ -525,8 +712,7 @@ void LibRetroPipeline::setupPassUniforms(const uint id) {
 		}
 	}
 
-	// TODO: We do not support Prev right now. Instead we always use the orig
-	// texture for these.
+	// All frames always have the same sizes: we reset them all at once
 	setShaderTexUniforms("Prev", shader, *_passes[0].inputTexture);
 	for (uint prevId = 1; prevId <= 6; ++prevId) {
 		setShaderTexUniforms(Common::String::format("Prev%u", prevId), shader, *_passes[0].inputTexture);
@@ -635,32 +821,42 @@ void LibRetroPipeline::Pass::buildTexSamplers(const uint id, const TextureArray 
 	addTexSampler("Orig", &sampler, TextureSampler::kTypePass, 0);
 
 	// 4. Step: Assign previous render inputs.
-	addTexSampler("Prev", &sampler, TextureSampler::kTypePrev, 0);
+	if (addTexSampler("Prev", &sampler, TextureSampler::kTypePrev, 0)) {
+		prevCount = 1;
+	}
 	for (uint prevId = 1; prevId <= 6; ++prevId) {
-		addTexSampler(Common::String::format("Prev%u", prevId), &sampler, TextureSampler::kTypePrev, prevId);
+		if (addTexSampler(Common::String::format("Prev%u", prevId), &sampler, TextureSampler::kTypePrev, prevId)) {
+			prevCount = prevId + 1;
+		}
 	}
 }
 
-void LibRetroPipeline::Pass::addTexSampler(const Common::String &prefix, uint *unit, const TextureSampler::Type type, const uint index, const bool prefixIsId) {
+bool LibRetroPipeline::Pass::addTexSampler(const Common::String &prefix, uint *unit, const TextureSampler::Type type, const uint index, const bool prefixIsId) {
 	const Common::String id = prefixIsId ? prefix : (prefix + "Texture");
 
 	/* Search in the samplers if we already have one for the texture */
 	for(TextureSamplerArray::iterator it = texSamplers.begin(); it != texSamplers.end(); it++) {
 		if (it->type == type && it->index == index) {
-			shader->setUniform(id, it->unit);
-			return;
+			return shader->setUniform(id, it->unit);
 		}
 	}
 
-	if (shader->setUniform(id, *unit)) {
-		texSamplers.push_back(TextureSampler((*unit)++, type, index));
+	if (!shader->setUniform(id, *unit)) {
+		return false;
 	}
+
+	texSamplers.push_back(TextureSampler((*unit)++, type, index));
+
+	return true;
 }
 
 void LibRetroPipeline::renderPass(const Pass &pass) {
 	// Activate shader and framebuffer to be used for rendering.
+	FakePipeline fakePipeline;
+
 	pass.shader->use();
-	setFramebuffer(pass.target);
+	// We don't need to set the projection matrix here so let's use a fake pipeline
+	pass.target->activate(&fakePipeline);
 
 	if (pass.hasFrameCount) {
 		uint frameCount = _frameCount;
@@ -678,6 +874,8 @@ void LibRetroPipeline::renderPass(const Pass &pass) {
 
 	// Actually draw something.
 	GL_CALL(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+
+	pass.target->deactivate();
 
 	// Unbind shader.
 	pass.shader->unbind();
@@ -700,7 +898,7 @@ void LibRetroPipeline::renderPassSetupCoordinates(const Pass &pass) {
 			break;
 
 		case Pass::TexCoordAttribute::kTypePrev:
-			// TODO: Properly support Prev
+			// All frames always have the same tex coordinates: we reset them all at once
 			texCoords = _passes[0].inputTexture->getTexCoords();
 			break;
 		}
@@ -736,10 +934,12 @@ void LibRetroPipeline::renderPassSetupTextures(const Pass &pass) {
 			texture = _passes[i->index].inputTexture;
 			break;
 
-		case Pass::TextureSampler::kTypePrev:
-			// TODO: Properly support Prev
-			texture = _passes[0].inputTexture;
+		case Pass::TextureSampler::kTypePrev: {
+			assert(i->index < _inputTargets.size() - 1);
+			texture = _inputTargets[(_currentTarget - i->index - 1
+					+ _inputTargets.size()) % _inputTargets.size()].getTexture();
 			break;
+		}
 		}
 
 		if (!texture) {

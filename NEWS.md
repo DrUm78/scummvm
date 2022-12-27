@@ -11,11 +11,15 @@ For a more comprehensive changelog of the latest experimental code, see:
    - Added support for Obsidian.
    - Added support for Pink Panther: Passport to Peril.
    - Added support for Pink Panther: Hokus Pokus Pink.
+   - Added support for Driller/Space Station Oblivion (DOS/EGA, Amiga and AtariST versions).
 
  General:
    - Reduced amount of false positives in Mass Add.
    - Updated the Roland MT-32 emulation code to Munt mt32emu 2.7.0.
    - Added support for shader-based scalers.
+   - Added option for mono sound output (via --output-channels=CHANNELS command
+     line option).
+   - Improved cursor scaling in OpenGL mode.
 
  AGI:
    - Improved support for French translations.
@@ -24,12 +28,34 @@ For a more comprehensive changelog of the latest experimental code, see:
    - Added option to disable the fade-out effects on room transition for
      Simon1 and 2.
 
+ AGS:
+   - Added support for the original installer files for Maniac Mansion Deluxe and
+     The New Adventures of Zak McKracken.
+
+ GOB:
+   - Added support for Adibou 2 "Environment", "Read/Count 4 & 5" and "Read/Count 6 & 7".
+
  Kyra:
    - Added support for the Korean version of Legend of Kyrandia 1.
    - Added support for the Hebrew version of Legend of Kyrandia 3.
 
+ MADS:
+   - Added support for original floppy installer file layout for Rex Nebular.
+
+ Neverhood:
+   - Added support for Japanese version of Neverhood.
+
  Queen:
    - Added option for using a better font in Hebrew version.
+
+ SAGA:
+   - Added support for Chinese Inherit the Earth.
+   - Added support for Chinese I Have no Mouth and I Must Scream.
+   - Added support for Korean I Have no Mouth and I Must Scream.
+   - Added support for playing directly from floppy installer for ITE.
+
+ SCI:
+   - Improved text rendering for Macintosh titles.
 
  SCUMM:
    - Added support for CGA, CGA Composite, CGA black & white and Hercules modes
@@ -46,7 +72,6 @@ For a more comprehensive changelog of the latest experimental code, see:
      Guybrush back to Scabb Island, at the end of Part II.
    - Fixed various original game bugs, oversights and continuity errors (only
      when using the "Enable game-specific enhancements" setting).
-   - Added support for original GUI dialogs to v4-v8 LucasArts games.
    - Improved the decoding of some Western European game strings when they're
      displayed through ScummVM's interface, such as when pausing a game.
    - Fixed the navigator head not pointing to some directions in Monkey
@@ -64,19 +89,28 @@ For a more comprehensive changelog of the latest experimental code, see:
      other languages).
    - Improved support for Hebrew HE game localizations.
    - Fixed Roland MT-32 support in Sam & Max.
+   - Implemented original GUI and save menus for LucasArts games (DOS, Windows,
+     Amiga, Macintosh, FM-Towns, Atari ST and Commodore 64 versions).
+   - Implemented original save/load menu for MI1 SegaCD.
+
+ Sherlock:
+   - Added support for Chinese Rose Tattoo.
+
+ Sky:
+   - Added support for Chinese Beneath a Steel Sky.
 
  Toon:
    - Made game menus behave like in the original.
 
  TwinE:
-   - Fixed rendering issue with doors
-   - Fixed invalid music pause in behaviour and inventory menu
-   - Fixed giving kashes instead of hearts as fallback
-   - Fixed item flashing when they drop
-   - Fixed meca penguin angle at spawn
-   - Fixed background redraw when watching cutscenes at the television
-   - Fixed recenter the screen on activating an inventory item
-   - Fixed pressing W to talk to people also makes you jump
+   - Fixed rendering issue with doors.
+   - Fixed invalid music pause in behaviour and inventory menu.
+   - Fixed giving kashes instead of hearts as fallback.
+   - Fixed item flashing when they drop.
+   - Fixed meca penguin angle at spawn.
+   - Fixed background redraw when watching cutscenes at the television.
+   - Fixed recenter the screen on activating an inventory item.
+   - Fixed pressing W to talk to people also makes you jump.
 
 #### 2.6.1 "Incremental Escapism" (2022-10-31)
 
@@ -104,7 +138,7 @@ For a more comprehensive changelog of the latest experimental code, see:
    - Fixed possible crash when using the autosave function.
 
  SCI:
-   - Fixed various bugs and script issues in KQ4, KQ5, LB2, LONGBOW, PQ1, PQ3, QFG4 and SQ5.
+   - Fixed various bugs and script issues in KQ4, KQ5, LB2, LONGBOW, PQ1, PQ3, QFG2, QFG3, QFG4 and SQ5.
    - Numerous improvements to various parts of the engine code.
 
  SCUMM:
@@ -2804,7 +2838,7 @@ For a more comprehensive changelog of the latest experimental code, see:
 
  Simon:
    - Improved Hebrew support.
-   - Lots of long-overdue cleanups and re-structuring were made to accomodate
+   - Lots of long-overdue cleanups and re-structuring were made to accommodate
      for The Feeble Files.
    - Fixed a rare MIDI bug that would cause a channel to change volume without
      adjusting it to the master volume.

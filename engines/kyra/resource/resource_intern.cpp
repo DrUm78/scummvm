@@ -26,7 +26,7 @@
 #include "common/memstream.h"
 #include "common/substream.h"
 #include "common/macresman.h"
-#include "common/stuffit.h"
+#include "common/compression/stuffit.h"
 
 namespace Kyra {
 
@@ -1217,16 +1217,17 @@ Common::Archive *InstallerLoader::load(Resource *owner, const Common::String &fi
 	return new CachedArchive(fileList);
 }
 
-Common::Archive *StuffItLoader::load(Resource *owner, const Common::String &filename, Common::MacResManager *macResMan) {
-	if (macResMan->open(filename)) {
-		Common::SeekableReadStream *stream = macResMan->getDataFork();
-		if (stream) {
-			Common::Archive *archive = Common::createStuffItArchive(stream);
-			return archive;
-		}
+Common::Archive *StuffItLoader::load(Resource *owner, const Common::String &filename) {
+	return load(owner, Common::MacResManager::openFileOrDataFork(filename), filename);
+}
+
+Common::Archive *StuffItLoader::load(Resource *owner, Common::SeekableReadStream *stream, const Common::String& debugName) {
+	if (stream) {
+		Common::Archive *archive = Common::createStuffItArchive(stream);
+		return archive;
 	}
 
-	error("StuffItLoader::load: Could not load %s", filename.c_str());
+	error("StuffItLoader::load: Could not load %s", debugName.c_str());
 }
 
 CmpVocDecoder::CmpVocDecoder() {

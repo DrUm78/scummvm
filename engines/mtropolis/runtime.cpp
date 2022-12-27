@@ -93,6 +93,7 @@ public:
 	void onMouseMove(int32 x, int32 y) override;
 	void onMouseUp(int32 x, int32 y, int mouseButton) override;
 	void onKeyboardEvent(const Common::EventType evtType, bool repeat, const Common::KeyState &keyEvt) override;
+	void onAction(MTropolis::Actions::Action action) override;
 
 private:
 	bool _mouseButtonStates[Actions::kMouseButtonCount];
@@ -129,6 +130,10 @@ void MainWindow::onMouseUp(int32 x, int32 y, int mouseButton) {
 
 void MainWindow::onKeyboardEvent(const Common::EventType evtType, bool repeat, const Common::KeyState &keyEvt) {
 	_runtime->queueOSEvent(Common::SharedPtr<OSEvent>(new KeyboardInputEvent(kOSEventTypeKeyboard, evtType, repeat, keyEvt)));
+}
+
+void MainWindow::onAction(MTropolis::Actions::Action action) {
+	_runtime->queueOSEvent(Common::SharedPtr<OSEvent>(new ActionEvent(kOSEventTypeAction, action)));
 }
 
 
@@ -222,7 +227,12 @@ void ModifierChildCloner::visitChildStructuralRef(Common::SharedPtr<Structural> 
 }
 
 void ModifierChildCloner::visitChildModifierRef(Common::SharedPtr<Modifier> &modifier) {
+	uint32 oldGUID = modifier->getStaticGUID();
 	modifier = modifier->shallowClone();
+	assert(modifier->getStaticGUID() == oldGUID);
+
+	(void)oldGUID;
+
 	modifier->setSelfReference(modifier);
 	modifier->setParent(_relinkParent);
 
@@ -1013,21 +1023,20 @@ MiniscriptInstructionOutcome DynamicList::WriteProxyInterface::write(MiniscriptT
 MiniscriptInstructionOutcome DynamicList::WriteProxyInterface::refAttrib(MiniscriptThread *thread, DynamicValueWriteProxy &proxy, void *objectRef, uintptr ptrOrOffset, const Common::String &attrib) {
 	DynamicList *list = static_cast<DynamicList *>(objectRef);
 
+	if (ptrOrOffset >= list->getSize()) {
+		// Only direct sets of elements may change the size of a list.  Accessing attributes of elements that aren't set is an error.
+		thread->error("List attrib write dereference was out of bounds");
+		return kMiniscriptInstructionOutcomeFailed;
+	}
+
 	switch (list->getType()) {
 	case DynamicValueTypes::kPoint:
-		list->expandToMinimumSize(ptrOrOffset + 1);
 		return pointWriteRefAttrib(list->getPoint()[ptrOrOffset], thread, proxy, attrib);
 	case DynamicValueTypes::kIntegerRange:
-		list->expandToMinimumSize(ptrOrOffset + 1);
 		return list->getIntRange()[ptrOrOffset].refAttrib(thread, proxy, attrib);
 	case DynamicValueTypes::kVector:
-		list->expandToMinimumSize(ptrOrOffset + 1);
 		return list->getVector()[ptrOrOffset].refAttrib(thread, proxy, attrib);
 	case DynamicValueTypes::kObject: {
-			if (list->getSize() <= ptrOrOffset) {
-				return kMiniscriptInstructionOutcomeFailed;
-				}
-
 			Common::SharedPtr<RuntimeObject> obj = list->getObjectReference()[ptrOrOffset].object.lock();
 			proxy.containerList.reset();
 			if (!obj) {
@@ -1059,7 +1068,7 @@ MiniscriptInstructionOutcome DynamicList::WriteProxyInterface::refAttribIndexed(
 			subList->createWriteProxyForIndex(subIndex, proxy);
 			proxy.containerList = subList;
 			return kMiniscriptInstructionOutcomeContinue;
-		}
+		} break;
 	case DynamicValueTypes::kObject: {
 			if (list->getSize() <= ptrOrOffset)
 				return kMiniscriptInstructionOutcomeFailed;
@@ -1070,7 +1079,7 @@ MiniscriptInstructionOutcome DynamicList::WriteProxyInterface::refAttribIndexed(
 				return kMiniscriptInstructionOutcomeFailed;
 
 			return kMiniscriptInstructionOutcomeContinue;
-		}
+		} break;
 	default:
 		return kMiniscriptInstructionOutcomeFailed;
 	}
@@ -1370,22 +1379,78 @@ bool DynamicValue::roundToInt(int32 &outInt) const {
 }
 
 bool DynamicValue::convertToType(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const {
+	if (_type == DynamicValueTypes::kObject && targetType != DynamicValueTypes::kObject) {
+		RuntimeObject *obj = this->_value.asObj.object.lock().get();
+		if (obj && obj->isModifier() && static_cast<Modifier *>(obj)->isVariable()) {
+			DynamicValue varContents;
+			static_cast<VariableModifier *>(obj)->varGetValue(varContents);
+			return varContents.convertToTypeNoDereference(targetType, result);
+		}
+	}
+
+	if (_type == DynamicValueTypes::kList && targetType != DynamicValueTypes::kList) {
+		if (_value.asList.get() && _value.asList->getSize() == 1) {
+			// Single-value lists are convertible
+			DynamicValue firstListElement;
+			(void)_value.asList->getAtIndex(0, firstListElement);
+
+			return firstListElement.convertToType(targetType, result);
+		}
+	}
+
+	return convertToTypeNoDereference(targetType, result);
+}
+
+DynamicValue DynamicValue::dereference() const {
+	if (_type == DynamicValueTypes::kObject) {
+		RuntimeObject *obj = this->_value.asObj.object.lock().get();
+		if (obj && obj->isModifier() && static_cast<Modifier *>(obj)->isVariable()) {
+			DynamicValue varContents;
+			static_cast<VariableModifier *>(obj)->varGetValue(varContents);
+			return varContents;
+		}
+	}
+
+	if (_type == DynamicValueTypes::kList) {
+		if (_value.asList.get() && _value.asList->getSize() == 1) {
+			// Single-value lists are convertible
+			DynamicValue firstListElement;
+			(void)_value.asList->getAtIndex(0, firstListElement);
+
+			return firstListElement;
+		}
+	}
+
+	return *this;
+}
+
+bool DynamicValue::convertToTypeNoDereference(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const {
 	if (_type == targetType) {
 		result = *this;
 		return true;
 	}
 
 	switch (_type) {
+	case DynamicValueTypes::kNull:
+		if (targetType == DynamicValueTypes::kObject) {
+			result.setObject(Common::WeakPtr<RuntimeObject>());
+			return true;
+		}
+		break;
 	case DynamicValueTypes::kInteger:
 		return convertIntToType(targetType, result);
 	case DynamicValueTypes::kFloat:
 		return convertFloatToType(targetType, result);
 	case DynamicValueTypes::kBoolean:
 		return convertBoolToType(targetType, result);
+	case DynamicValueTypes::kString:
+		return convertStringToType(targetType, result);
 	default:
-		warning("Couldn't convert dynamic value from source type");
-		return false;
+		break;
 	}
+
+	warning("Couldn't convert dynamic value from source type");
+	return false;
 }
 
 void DynamicValue::setObject(const ObjectReference &value) {
@@ -1549,6 +1614,35 @@ bool DynamicValue::convertBoolToType(DynamicValueTypes::DynamicValueType targetT
 		warning("Unable to implicitly convert dynamic value");
 		return false;
 	}
+}
+
+bool DynamicValue::convertStringToType(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const {
+	const Common::String &value = this->getString();
+
+	// Docs say that strings are always false but they are not convertible
+	switch (targetType) {
+	case DynamicValueTypes::kInteger: {
+			// Passing float values is allowed, but they are truncated toward zero instead of rounded
+			double floatValue = 0;
+			if (sscanf(value.c_str(), "%lf", &floatValue))
+				result.setInt(static_cast<int>(floatValue));
+			else
+				result.setInt(0);
+			return true;
+		} break;
+	case DynamicValueTypes::kFloat: {
+			double floatValue = 0;
+			if (sscanf(value.c_str(), "%lf", &floatValue))
+				result.setFloat(floatValue);
+			else
+				result.setFloat(0.0);
+			return true;
+		} break;
+	default:
+		break;
+	}
+	warning("Unable to implicitly convert dynamic value");
+	return false;
 }
 
 void DynamicValue::setFromOther(const DynamicValue &other) {
@@ -1718,7 +1812,7 @@ DynamicValue DynamicValueSource::produceValue(const DynamicValue &incomingData) 
 		return incomingData;
 	case DynamicValueSourceTypes::kVariableReference: {
 			Common::SharedPtr<Modifier> resolution = _valueUnion._varReference.resolution.lock();
-			if (resolution->isVariable()) {
+			if (resolution && resolution->isVariable()) {
 				DynamicValue result;
 				static_cast<VariableModifier *>(resolution.get())->varGetValue(result);
 				return result;
@@ -1790,10 +1884,12 @@ void DynamicValueSource::initFromOther(DynamicValueSource &&other) {
 }
 
 MiniscriptInstructionOutcome DynamicValueWriteStringHelper::write(MiniscriptThread *thread, const DynamicValue &value, void *objectRef, uintptr ptrOrOffset) {
+	DynamicValue derefValue = value.dereference();
+
 	Common::String &dest = *static_cast<Common::String *>(objectRef);
-	switch (value.getType()) {
+	switch (derefValue.getType()) {
 	case DynamicValueTypes::kString:
-		dest = value.getString();
+		dest = derefValue.getString();
 		return kMiniscriptInstructionOutcomeContinue;
 	default:
 		return kMiniscriptInstructionOutcomeFailed;
@@ -1834,6 +1930,8 @@ void DynamicValueWriteDiscardHelper::create(DynamicValueWriteProxy &proxy) {
 
 
 MiniscriptInstructionOutcome DynamicValueWritePointHelper::write(MiniscriptThread *thread, const DynamicValue &value, void *objectRef, uintptr ptrOrOffset) {
+	DynamicValue derefValue = value.dereference();
+
 	if (value.getType() != DynamicValueTypes::kPoint) {
 		thread->error("Can't set point to invalid type");
 		return kMiniscriptInstructionOutcomeFailed;
@@ -1869,10 +1967,12 @@ void DynamicValueWritePointHelper::create(Common::Point *pointValue, DynamicValu
 }
 
 MiniscriptInstructionOutcome DynamicValueWriteBoolHelper::write(MiniscriptThread *thread, const DynamicValue &value, void *objectRef, uintptr ptrOrOffset) {
+	DynamicValue derefValue = value.dereference();
+
 	bool &dest = *static_cast<bool *>(objectRef);
-	switch (value.getType()) {
+	switch (derefValue.getType()) {
 	case DynamicValueTypes::kBoolean:
-		dest = value.getBool();
+		dest = derefValue.getBool();
 		return kMiniscriptInstructionOutcomeContinue;
 	default:
 		return kMiniscriptInstructionOutcomeFailed;
@@ -2005,7 +2105,7 @@ void MessengerSendSpec::visitInternalReferences(IStructuralReferenceVisitor *vis
 	visitor->visitWeakModifierRef(_resolvedVarSource);
 }
 
-void MessengerSendSpec::resolveDestination(Runtime *runtime, Modifier *sender, Common::WeakPtr<Structural> &outStructuralDest, Common::WeakPtr<Modifier> &outModifierDest, RuntimeObject *customDestination) const {
+void MessengerSendSpec::resolveDestination(Runtime *runtime, Modifier *sender, RuntimeObject *triggerSource, Common::WeakPtr<Structural> &outStructuralDest, Common::WeakPtr<Modifier> &outModifierDest, RuntimeObject *customDestination) const {
 	outStructuralDest.reset();
 	outModifierDest.reset();
 
@@ -2085,9 +2185,14 @@ void MessengerSendSpec::resolveDestination(Runtime *runtime, Modifier *sender, C
 					outStructuralDest = sibling;
 			} break;
 		case kMessageDestSourcesParent: {
-				// This sends to the exact parent, e.g. if the sender is inside of a behavior, then it sends it to the behavior.
-				if (sender) {
-					Common::SharedPtr<RuntimeObject> parentObj = sender->getParent().lock();
+				// This sends to the exact parent, e.g. if the source is inside of a behavior, then it sends it to the behavior.
+				if (triggerSource) {
+					RuntimeObject *parentObj = nullptr;
+					if (triggerSource->isModifier())
+						parentObj = static_cast<Modifier *>(triggerSource)->getParent().lock().get();
+					else if (triggerSource->isStructural())
+						parentObj = static_cast<Structural *>(triggerSource)->getParent();
+
 					if (parentObj) {
 						if (parentObj->isModifier())
 							outModifierDest = parentObj->getSelfReference().staticCast<Modifier>();
@@ -2126,17 +2231,17 @@ void MessengerSendSpec::resolveVariableObjectType(RuntimeObject *obj, Common::We
 	}
 }
 
-void MessengerSendSpec::sendFromMessenger(Runtime *runtime, Modifier *sender, const DynamicValue &incomingData, RuntimeObject *customDestination) const {
-	sendFromMessengerWithCustomData(runtime, sender, this->with.produceValue(incomingData), customDestination);
+void MessengerSendSpec::sendFromMessenger(Runtime *runtime, Modifier *sender, RuntimeObject *triggerSource, const DynamicValue &incomingData, RuntimeObject *customDestination) const {
+	sendFromMessengerWithCustomData(runtime, sender, triggerSource, this->with.produceValue(incomingData), customDestination);
 }
 
-void MessengerSendSpec::sendFromMessengerWithCustomData(Runtime *runtime, Modifier *sender, const DynamicValue &data, RuntimeObject *customDestination) const {
+void MessengerSendSpec::sendFromMessengerWithCustomData(Runtime *runtime, Modifier *sender, RuntimeObject *triggerSource, const DynamicValue &data, RuntimeObject *customDestination) const {
 	Common::SharedPtr<MessageProperties> props(new MessageProperties(this->send, data, sender->getSelfReference()));
 
 	Common::WeakPtr<Modifier> modifierDestRef;
 	Common::WeakPtr<Structural> structuralDestRef;
 
-	resolveDestination(runtime, sender, structuralDestRef, modifierDestRef, customDestination);
+	resolveDestination(runtime, sender, triggerSource, structuralDestRef, modifierDestRef, customDestination);
 
 	Common::SharedPtr<Modifier> modifierDest = modifierDestRef.lock();
 	Common::SharedPtr<Structural> structuralDest = structuralDestRef.lock();
@@ -2545,7 +2650,7 @@ void MessageProperties::setValue(const DynamicValue &value) {
 		_value = value;
 }
 
-WorldManagerInterface::WorldManagerInterface() : _gameMode(false) {
+WorldManagerInterface::WorldManagerInterface() : _gameMode(false), _combineRedraws(true), _postponeRedraws(false), _opInt(0) {
 }
 
 bool WorldManagerInterface::readAttribute(MiniscriptThread *thread, DynamicValue &result, const Common::String &attrib) {
@@ -2563,9 +2668,17 @@ bool WorldManagerInterface::readAttribute(MiniscriptThread *thread, DynamicValue
 
 		result.setInt(bitDepth);
 		return true;
-	}
-	else if (attrib == "gamemode") {
+	} else if (attrib == "gamemode") {
 		result.setBool(_gameMode);
+		return true;
+	} else if (attrib == "combineredraws") {
+		result.setBool(_combineRedraws);
+		return true;
+	} else if (attrib == "postponeredraws") {
+		result.setBool(_postponeRedraws);
+		return true;
+	} else if (attrib == "clickcount") {
+		result.setInt(thread->getRuntime()->getMultiClickCount());
 		return true;
 	}
 
@@ -2574,23 +2687,37 @@ bool WorldManagerInterface::readAttribute(MiniscriptThread *thread, DynamicValue
 
 MiniscriptInstructionOutcome WorldManagerInterface::writeRefAttribute(MiniscriptThread *thread, DynamicValueWriteProxy &result, const Common::String &attrib) {
 	if (attrib == "currentscene") {
-		DynamicValueWriteFuncHelper<WorldManagerInterface, &WorldManagerInterface::setCurrentScene>::create(this, result);
+		DynamicValueWriteFuncHelper<WorldManagerInterface, &WorldManagerInterface::setCurrentScene, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
-	}
-	if (attrib == "refreshcursor") {
-		DynamicValueWriteFuncHelper<WorldManagerInterface, &WorldManagerInterface::setRefreshCursor>::create(this, result);
+	} else if (attrib == "refreshcursor") {
+		DynamicValueWriteFuncHelper<WorldManagerInterface, &WorldManagerInterface::setRefreshCursor, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
-	}
-	if (attrib == "autoresetcursor") {
-		DynamicValueWriteFuncHelper<WorldManagerInterface, &WorldManagerInterface::setAutoResetCursor>::create(this, result);
+	} else if (attrib == "autoresetcursor") {
+		DynamicValueWriteFuncHelper<WorldManagerInterface, &WorldManagerInterface::setAutoResetCursor, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
-	}
-	if (attrib == "winsndbuffersize") {
-		DynamicValueWriteFuncHelper<WorldManagerInterface, &WorldManagerInterface::setWinSndBufferSize>::create(this, result);
+	} else if (attrib == "winsndbuffersize") {
+		DynamicValueWriteFuncHelper<WorldManagerInterface, &WorldManagerInterface::setWinSndBufferSize, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
-	}
-	if (attrib == "gamemode") {
+	} else if (attrib == "gamemode") {
 		DynamicValueWriteBoolHelper::create(&_gameMode, result);
+		return kMiniscriptInstructionOutcomeContinue;
+	} else if (attrib == "combineredraws") {
+		DynamicValueWriteBoolHelper::create(&_combineRedraws, result);
+		return kMiniscriptInstructionOutcomeContinue;
+	} else if (attrib == "postponeredraws") {
+		DynamicValueWriteBoolHelper::create(&_postponeRedraws, result);
+		return kMiniscriptInstructionOutcomeContinue;
+	} else if (attrib == "qtpalettehack") {
+		DynamicValueWriteDiscardHelper::create(result);
+		return kMiniscriptInstructionOutcomeContinue;
+	} else if (attrib == "opint") {
+		// This is used by SPQR before changing scenes in many instances.  It's not clear what it does.
+		// It's usually set to 2 or 4, sometimes 7
+		DynamicValueWriteIntegerHelper<int32>::create(&_opInt, result);
+		return kMiniscriptInstructionOutcomeContinue;
+	} else if (attrib == "scenefades") {
+		// TODO
+		DynamicValueWriteDiscardHelper::create(result);
 		return kMiniscriptInstructionOutcomeContinue;
 	}
 	return RuntimeObject::writeRefAttribute(thread, result, attrib);
@@ -2694,19 +2821,19 @@ bool SystemInterface::readAttributeIndexed(MiniscriptThread *thread, DynamicValu
 
 MiniscriptInstructionOutcome SystemInterface::writeRefAttribute(MiniscriptThread *thread, DynamicValueWriteProxy &result, const Common::String &attrib) {
 	if (attrib == "ejectcd") {
-		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setEjectCD>::create(this, result);
+		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setEjectCD, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "gamemode") {
-		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setGameMode>::create(this, result);
+		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setGameMode, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "mastervolume") {
-		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setMasterVolume>::create(this, result);
+		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setMasterVolume, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "monitorbitdepth") {
-		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setMonitorBitDepth>::create(this, result);
+		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setMonitorBitDepth, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "volumename") {
-		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setVolumeName>::create(this, result);
+		DynamicValueWriteFuncHelper<SystemInterface, &SystemInterface::setVolumeName, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	}
 
@@ -2808,7 +2935,10 @@ void StructuralHooks::onSetPosition(Runtime *runtime, Structural *structural, Co
 ProjectPresentationSettings::ProjectPresentationSettings() : width(640), height(480), bitsPerPixel(8) {
 }
 
-Structural::Structural() : _parent(nullptr), _paused(false), _loop(false), _flushPriority(0) {
+Structural::Structural() : Structural(nullptr) {
+}
+
+Structural::Structural(Runtime *runtime) : _parent(nullptr), _paused(false), _loop(false), _flushPriority(0), _runtime(runtime) {
 }
 
 Structural::~Structural() {
@@ -2929,6 +3059,14 @@ bool Structural::readAttribute(MiniscriptThread *thread, DynamicValue &result, c
 	} else if (attrib == "flushpriority") {
 		result.setInt(_flushPriority);
 		return true;
+	} else if (attrib == "firstchild") {
+		// Despite documentation describing modifiers as children, "firstchild" on a structural element always returns
+		// the first structural child.
+		if (_children.size() == 0)
+			result.clear();
+		else
+			result.setObject(_children[0]->getSelfReference());
+		return true;
 	}
 
 	// Traverse children (modifiers must be first)
@@ -2954,7 +3092,7 @@ MiniscriptInstructionOutcome Structural::writeRefAttribute(MiniscriptThread *thr
 		DynamicValueWriteStringHelper::create(&_name, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "paused") {
-		DynamicValueWriteFuncHelper<Structural, &Structural::scriptSetPaused>::create(this, result);
+		DynamicValueWriteFuncHelper<Structural, &Structural::scriptSetPaused, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "this") {
 		// Yes, "this" is an attribute
@@ -2995,10 +3133,10 @@ MiniscriptInstructionOutcome Structural::writeRefAttribute(MiniscriptThread *thr
 			return kMiniscriptInstructionOutcomeFailed;
 		}
 	} else if (attrib == "loop") {
-		DynamicValueWriteFuncHelper<Structural, &Structural::scriptSetLoop>::create(this, result);
+		DynamicValueWriteFuncHelper<Structural, &Structural::scriptSetLoop, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "debug") {
-		DynamicValueWriteFuncHelper<Structural, &Structural::scriptSetDebug>::create(this, result);
+		DynamicValueWriteFuncHelper<Structural, &Structural::scriptSetDebug, true>::create(this, result);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "flushpriority") {
 		DynamicValueWriteIntegerHelper<int32>::create(&_flushPriority, result);
@@ -3104,6 +3242,10 @@ Structural *Structural::findPrevSibling() const {
 	return nullptr;
 }
 
+Runtime *Structural::getRuntime() const {
+	return _runtime;
+}
+
 void Structural::setParent(Structural *parent) {
 	_parent = parent;
 }
@@ -3146,6 +3288,8 @@ void Structural::materializeSelfAndDescendents(Runtime *runtime, ObjectLinkingSc
 	setRuntimeGUID(runtime->allocateRuntimeGUID());
 
 	materializeDescendents(runtime, outerScope);
+
+	_runtime = runtime;
 }
 
 void Structural::materializeDescendents(Runtime *runtime, ObjectLinkingScope *outerScope) {
@@ -3317,6 +3461,11 @@ void Structural::debugInspect(IDebugInspectionReport *report) const {
 		report->declareStaticContents(debugGetTypeName());
 	if (report->declareStatic("guid"))
 		report->declareStaticContents(Common::String::format("%x", getStaticGUID()));
+}
+
+void Structural::debugSkipMovies() {
+	for (Common::SharedPtr<Structural> &child : _children)
+		child->debugSkipMovies();
 }
 
 #endif /* MTROPOLIS_DEBUG_ENABLE */
@@ -3526,19 +3675,17 @@ MessageDispatch::MessageDispatch(const Common::SharedPtr<MessageProperties> &msg
 
 MessageDispatch::MessageDispatch(const Common::SharedPtr<MessageProperties> &msgProps, Modifier *root, bool cascade, bool relay, bool couldBeCommand)
 	: _cascade(cascade), _relay(relay), _terminated(false), _msg(msgProps), _isCommand(false) {
-	if (couldBeCommand && EventIDs::isCommand(msgProps->getEvent().eventType)) {
-		_isCommand = true;
-		// Can't actually send this so don't even bother.  Modifiers are not allowed to respond to commands.
-	} else {
-		PropagationStack topEntry;
-		topEntry.index = 0;
-		topEntry.propagationStage = PropagationStack::kStageCheckAndSendToModifier;
-		topEntry.ptr.modifier = root;
 
-		_isCommand = (couldBeCommand && EventIDs::isCommand(msgProps->getEvent().eventType));
+	// Apparently if a command message is sent to a modifier, it's handled as a message.
+	// SPQR depends on this to send "Element Select" messages to pick the palette.
+	PropagationStack topEntry;
+	topEntry.index = 0;
+	topEntry.propagationStage = PropagationStack::kStageCheckAndSendToModifier;
+	topEntry.ptr.modifier = root;
 
-		_propagationStack.push_back(topEntry);
-	}
+	_isCommand = false;
+
+	_propagationStack.push_back(topEntry);
 
 	_root = root->getSelfReference();
 }
@@ -3921,6 +4068,13 @@ const Common::KeyState &KeyboardInputEvent::getKeyState() const {
 	return _keyEvt;
 }
 
+ActionEvent::ActionEvent(OSEventType osEventType, Actions::Action action) : OSEvent(osEventType), _action(action) {
+}
+
+Actions::Action ActionEvent::getAction() const {
+	return _action;
+}
+
 Runtime::SceneStackEntry::SceneStackEntry() {
 }
 
@@ -3928,6 +4082,9 @@ Runtime::Teardown::Teardown() : onlyRemoveChildren(false) {
 }
 
 Runtime::SceneReturnListEntry::SceneReturnListEntry() : isAddToDestinationSceneTransition(false) {
+}
+
+Runtime::DispatchActionTaskData::DispatchActionTaskData() : action(Actions::kNone) {
 }
 
 Runtime::ConsumeMessageTaskData::ConsumeMessageTaskData() : consumer(nullptr) {
@@ -4027,7 +4184,8 @@ Runtime::Runtime(OSystem *system, Audio::Mixer *mixer, ISaveUIProvider *saveProv
 	  _cachedMousePosition(Common::Point(0, 0)), _realMousePosition(Common::Point(0, 0)), _trackedMouseOutside(false),
 	  _forceCursorRefreshOnce(true), _autoResetCursor(false), _haveModifierOverrideCursor(false), _sceneGraphChanged(false), _isQuitting(false),
 	  _collisionCheckTime(0), _defaultVolumeState(true), _activeSceneTransitionEffect(nullptr), _sceneTransitionStartTime(0), _sceneTransitionEndTime(0),
-	  _modifierOverrideCursorID(0), _subtitleRenderer(subRenderer) {
+	  _sharedSceneWasSetExplicitly(false), _modifierOverrideCursorID(0), _subtitleRenderer(subRenderer), _multiClickStartTime(0), _multiClickInterval(500), _multiClickCount(0)
+{
 	_random.reset(new Common::RandomSource("mtropolis"));
 
 	_vthread.reset(new VThread());
@@ -4131,6 +4289,14 @@ bool Runtime::runFrame() {
 			case kOSEventTypeMouseMove: {
 					MouseInputEvent *mouseEvt = static_cast<MouseInputEvent *>(evt.get());
 
+					if (evtType == kOSEventTypeMouseDown) {
+						if (_multiClickStartTime + _multiClickInterval <= _playTime) {
+							_multiClickStartTime = _playTime;
+							_multiClickCount = 1;
+						} else
+							_multiClickCount++;
+					}
+
 					// Maybe shouldn't post the update mouse button task if non-left buttons are pressed?
 					if ((evtType == kOSEventTypeMouseDown || evtType == kOSEventTypeMouseUp) && mouseEvt->getButton() == Actions::kMouseButtonLeft) {
 						UpdateMouseStateTaskData *taskData = _vthread->pushTask("Runtime::updateMouseStateTask", this, &Runtime::updateMouseStateTask);
@@ -4143,6 +4309,12 @@ bool Runtime::runFrame() {
 						taskData->x = mouseEvt->getX();
 						taskData->y = mouseEvt->getY();
 					}
+				} break;
+			case kOSEventTypeAction: {
+					Actions::Action action = static_cast<ActionEvent *>(evt.get())->getAction();
+
+					DispatchActionTaskData *taskData = _vthread->pushTask("Runtime::dispatchAction", this, &Runtime::dispatchActionTask);
+					taskData->action = action;
 				} break;
 			default:
 				break;
@@ -4564,7 +4736,12 @@ void Runtime::executeCompleteTransitionToScene(const Common::SharedPtr<Structura
 	if (_sceneStack.size() == 0)
 		_sceneStack.resize(1);	// Reserve shared scene slot
 
-	Common::SharedPtr<Structural> targetSharedScene = findDefaultSharedSceneForScene(targetScene.get());
+	Common::SharedPtr<Structural> targetSharedScene;
+
+	if (_sharedSceneWasSetExplicitly)
+		targetSharedScene = _activeSharedScene;
+	else
+		targetSharedScene = findDefaultSharedSceneForScene(targetScene.get());
 
 	for (const Common::SharedPtr<SceneTransitionHooks> &hooks : _hacks.sceneTransitionHooks)
 		hooks->onSceneTransitionSetup(this, _activeMainScene, targetScene);
@@ -4683,7 +4860,12 @@ void Runtime::executeHighLevelSceneTransition(const HighLevelSceneTransition &tr
 
 			if (transition.addToDestinationScene) {
 				if (targetScene != _activeMainScene) {
-					Common::SharedPtr<Structural> targetSharedScene = findDefaultSharedSceneForScene(targetScene.get());
+					Common::SharedPtr<Structural> targetSharedScene;
+
+					if (_sharedSceneWasSetExplicitly)
+						targetSharedScene = _activeSharedScene;
+					else
+						targetSharedScene = findDefaultSharedSceneForScene(targetScene.get());
 
 					if (targetScene == targetSharedScene)
 						error("Transitioned into a default shared scene, this is not supported");
@@ -4759,7 +4941,11 @@ void Runtime::executeHighLevelSceneTransition(const HighLevelSceneTransition &tr
 				sharedSceneEntry.scene = targetSharedScene;
 
 				_sceneStack[0] = sharedSceneEntry;
+
+				_activeSharedScene = targetSharedScene;
 			}
+
+			_sharedSceneWasSetExplicitly = true;
 		} break;
 	default:
 		error("Unknown high-level scene transition type");
@@ -5266,6 +5452,22 @@ VThreadState Runtime::dispatchKeyTask(const DispatchKeyTaskData &data) {
 	}
 }
 
+VThreadState Runtime::dispatchActionTask(const DispatchActionTaskData &data) {
+	switch (data.action)
+	{
+	case Actions::kDebugSkipMovies:
+#ifdef MTROPOLIS_DEBUG_ENABLE
+		_project->debugSkipMovies();
+#endif
+		break;
+	default:
+		warning("Unhandled action %i", static_cast<int>(data.action));
+		break;
+	}
+
+	return kVThreadReturn;
+}
+
 VThreadState Runtime::consumeMessageTask(const ConsumeMessageTaskData &data) {
 	IMessageConsumer *consumer = data.consumer;
 	assert(consumer->respondsToEvent(data.message->getEvent()));
@@ -5510,18 +5712,22 @@ void Runtime::instantiateIfAlias(Common::SharedPtr<Modifier> &modifier, const Co
 			error("Failed to resolve alias");
 		}
 
-		if (!modifier->isVariable()) {
-			Common::SharedPtr<Modifier> clonedModifier = templateModifier->shallowClone();
-			clonedModifier->setSelfReference(clonedModifier);
-			clonedModifier->setRuntimeGUID(allocateRuntimeGUID());
+		Common::SharedPtr<Modifier> clonedModifier = templateModifier->shallowClone();
+		clonedModifier->setSelfReference(clonedModifier);
+		clonedModifier->setRuntimeGUID(allocateRuntimeGUID());
 
-			clonedModifier->setName(modifier->getName());
+		clonedModifier->setName(modifier->getName());
 
-			modifier = clonedModifier;
-			clonedModifier->setParent(relinkParent);
+		modifier = clonedModifier;
+		clonedModifier->setParent(relinkParent);
 
-			ModifierChildCloner cloner(this, clonedModifier);
-			clonedModifier->visitInternalReferences(&cloner);
+		ModifierChildCloner cloner(this, clonedModifier);
+		clonedModifier->visitInternalReferences(&cloner);
+
+		// Aliased variables use the same variable storage, but are treated as distinct objects.
+		if (clonedModifier->isVariable()) {
+ 			assert(templateModifier->isVariable());
+			static_cast<VariableModifier *>(clonedModifier.get())->setStorage(static_cast<const VariableModifier *>(templateModifier.get())->getStorage());
 		}
 	}
 }
@@ -5618,6 +5824,13 @@ void Runtime::onKeyboardEvent(const Common::EventType evtType, bool repeat, cons
 		focusWindow->onKeyboardEvent(evtType, repeat, keyEvt);
 }
 
+
+void Runtime::onAction(MTropolis::Actions::Action action) {
+	Common::SharedPtr<Window> focusWindow = _keyFocusWindow.lock();
+	if (focusWindow)
+		focusWindow->onAction(action);
+}
+
 const Common::Point &Runtime::getCachedMousePosition() const {
 	return _cachedMousePosition;
 }
@@ -5643,6 +5856,10 @@ void Runtime::forceCursorRefreshOnce() {
 
 void Runtime::setAutoResetCursor(bool enabled) {
 	_autoResetCursor = enabled;
+}
+
+uint Runtime::getMultiClickCount() const {
+	return _multiClickCount;
 }
 
 bool Runtime::isAwaitingSceneTransition() const {
@@ -6475,7 +6692,7 @@ void MediaCueState::checkTimestampChange(Runtime *runtime, uint32 oldTS, uint32 
 
 	// Given the positioning of this, there's not really a way for the immediate flag to have any effect?
 	if (shouldTrigger)
-		send.sendFromMessenger(runtime, sourceModifier, incomingData, nullptr);
+		send.sendFromMessenger(runtime, sourceModifier->getMediaCueModifier(), sourceModifier->getMediaCueTriggerSource().lock().get(), incomingData, nullptr);
 }
 
 
@@ -6495,7 +6712,7 @@ Project::AssetDesc::AssetDesc() : typeCode(0), id(0) {
 }
 
 Project::Project(Runtime *runtime)
-	: _runtime(runtime), _projectFormat(Data::kProjectFormatUnknown), _isBigEndian(false),
+	: Structural(runtime), _projectFormat(Data::kProjectFormatUnknown), _isBigEndian(false),
 	  _haveGlobalObjectInfo(false), _haveProjectStructuralDef(false), _playMediaSignaller(new PlayMediaSignaller()),
 	  _keyboardEventSignaller(new KeyboardEventSignaller()) {
 }
@@ -6515,7 +6732,7 @@ VThreadState Project::consumeCommand(Runtime *runtime, const Common::SharedPtr<M
 }
 
 MiniscriptInstructionOutcome Project::writeRefAttribute(MiniscriptThread *thread, DynamicValueWriteProxy &result, const Common::String &attrib) {
-	if (attrib == "allowquit") {
+	if (attrib == "allowquit" || attrib == "allowquitkey") {
 		DynamicValueWriteDiscardHelper::create(result);
 		return kMiniscriptInstructionOutcomeContinue;
 	}
@@ -6714,6 +6931,15 @@ Common::SharedPtr<Modifier> Project::resolveAlias(uint32 aliasID) const {
 	return _globalModifiers.getModifiers()[aliasID - 1];
 }
 
+Common::SharedPtr<Modifier> Project::findGlobalVarWithName(const Common::String &name) const {
+	for (const Common::SharedPtr<Modifier> &modifier : _globalModifiers.getModifiers()) {
+		if (modifier && modifier->isVariable() && MTropolis::caseInsensitiveEqual(name, modifier->getName()))
+			return modifier;
+	}
+
+	return nullptr;
+}
+
 void Project::materializeGlobalVariables(Runtime *runtime, ObjectLinkingScope *outerScope) {
 	for (Common::Array<Common::SharedPtr<Modifier> >::const_iterator it = _globalModifiers.getModifiers().begin(), itEnd = _globalModifiers.getModifiers().end(); it != itEnd; ++it) {
 		Modifier *modifier = it->get();
@@ -6805,7 +7031,7 @@ Common::SharedPtr<SegmentUnloadSignaller> Project::notifyOnSegmentUnload(int seg
 }
 
 void Project::onPostRender() {
-	_playMediaSignaller->playMedia(_runtime, this);
+	_playMediaSignaller->playMedia(getRuntime(), this);
 }
 
 Common::SharedPtr<PlayMediaSignaller> Project::notifyOnPlayMedia(IPlayMediaSignalReceiver *receiver) {
@@ -6861,10 +7087,6 @@ void Project::loadBootStream(size_t streamIndex, const Hacks &hacks) {
 
 	size_t numObjectsLoaded = 0;
 	while (stream.pos() != streamDesc.size) {
-		uint64 streamPos = stream.pos();
-
-		debug(3, "Loading boot object from %x (abs %x)", static_cast<int>(streamPos), static_cast<int>(streamDesc.pos + streamPos));
-
 		Common::SharedPtr<Data::DataObject> dataObject;
 		Data::loadDataObject(plugInDataLoaderRegistry, reader, dataObject);
 
@@ -7032,7 +7254,7 @@ Common::SharedPtr<Modifier> Project::loadModifierObject(ModifierLoaderContext &l
 		error("Modifier object failed to load");
 
 	uint32 guid = modifier->getStaticGUID();
-	const Common::HashMap<uint32, Common::SharedPtr<ModifierHooks> > &hooksMap = _runtime->getHacks().modifierHooks;
+	const Common::HashMap<uint32, Common::SharedPtr<ModifierHooks> > &hooksMap = getRuntime()->getHacks().modifierHooks;
 	Common::HashMap<uint32, Common::SharedPtr<ModifierHooks> >::const_iterator hooksIt = hooksMap.find(guid);
 	if (hooksIt != hooksMap.end()) {
 		modifier->setHooks(hooksIt->_value);
@@ -7261,11 +7483,11 @@ void Project::loadContextualObject(size_t streamIndex, ChildLoaderStack &stack, 
 					error("No element factory defined for structural object");
 				}
 
-				ElementLoaderContext elementLoaderContext(_runtime, streamIndex);
+				ElementLoaderContext elementLoaderContext(getRuntime(), streamIndex);
 				Common::SharedPtr<Element> element = elementFactory->createElement(elementLoaderContext, dataObject);
 
 				uint32 guid = element->getStaticGUID();
-				const Common::HashMap<uint32, Common::SharedPtr<StructuralHooks> > &hooksMap = _runtime->getHacks().structuralHooks;
+				const Common::HashMap<uint32, Common::SharedPtr<StructuralHooks> > &hooksMap = getRuntime()->getHacks().structuralHooks;
 				Common::HashMap<uint32, Common::SharedPtr<StructuralHooks> >::const_iterator hooksIt = hooksMap.find(guid);
 				if (hooksIt != hooksMap.end()) {
 					element->setHooks(hooksIt->_value);
@@ -7630,6 +7852,29 @@ VThreadState VisualElement::consumeCommand(Runtime *runtime, const Common::Share
 	return Element::consumeCommand(runtime, msg);
 }
 
+bool VisualElement::respondsToEvent(const Event &evt) const {
+	if (Event(EventIDs::kAuthorMessage, 13).respondsTo(evt)) {
+		if (getRuntime()->getHacks().mtiSceneReturnHack)
+			return true;
+	}
+
+	return Element::respondsToEvent(evt);
+}
+
+VThreadState VisualElement::consumeMessage(Runtime *runtime, const Common::SharedPtr<MessageProperties> &msg) {
+	if (Event(EventIDs::kAuthorMessage, 13).respondsTo(msg->getEvent())) {
+		if (getRuntime()->getHacks().mtiSceneReturnHack) {
+			assert(this->getParent());
+			assert(this->getParent()->isSubsection());
+			runtime->addSceneStateTransition(HighLevelSceneTransition(this->getSelfReference().lock().staticCast<Structural>(), HighLevelSceneTransition::kTypeChangeToScene, false, false));
+
+			return kVThreadReturn;
+		}
+	}
+
+	return Element::consumeMessage(runtime, msg);
+}
+
 bool VisualElement::isMouseInsideDrawableArea(int32 relativeX, int32 relativeY) const {
 	if (relativeX < _rect.left || relativeX >= _rect.right || relativeY < _rect.top || relativeY >= _rect.bottom)
 		return false;
@@ -7790,10 +8035,10 @@ bool VisualElement::readAttribute(MiniscriptThread *thread, DynamicValue &result
 
 MiniscriptInstructionOutcome VisualElement::writeRefAttribute(MiniscriptThread *thread, DynamicValueWriteProxy &writeProxy, const Common::String &attrib) {
 	if (attrib == "visible") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetVisibility>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetVisibility, true>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "direct") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetDirect>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetDirect, true>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "position") {
 		DynamicValueWriteOrRefAttribFuncHelper<VisualElement, &VisualElement::scriptSetPosition, &VisualElement::scriptWriteRefPositionAttribute>::create(this, writeProxy);
@@ -7802,13 +8047,17 @@ MiniscriptInstructionOutcome VisualElement::writeRefAttribute(MiniscriptThread *
 		DynamicValueWriteOrRefAttribFuncHelper<VisualElement, &VisualElement::scriptSetCenterPosition, &VisualElement::scriptWriteRefCenterPositionAttribute>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "width") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetWidth>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetWidth, true>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "height") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetHeight>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetHeight, true>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "layer") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetLayer>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetLayer, true>::create(this, writeProxy);
+		return kMiniscriptInstructionOutcomeContinue;
+	} else if (attrib == "invalidaterect") {
+		// Not sure what this does, MTI uses it frequently
+		DynamicValueWriteDiscardHelper::create(writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	}
 
@@ -7956,6 +8205,8 @@ const Common::SharedPtr<Palette> &VisualElement::getPalette() const {
 void VisualElement::debugInspect(IDebugInspectionReport *report) const {
 	report->declareDynamic("layer", Common::String::format("%i", static_cast<int>(_layer)));
 	report->declareDynamic("relRect", Common::String::format("(%i,%i)-(%i,%i)", static_cast<int>(_rect.left), static_cast<int>(_rect.top), static_cast<int>(_rect.right), static_cast<int>(_rect.bottom)));
+	report->declareDynamic("directToScreen", Common::String(_directToScreen ? "true" : "false"));
+	report->declareDynamic("visible", Common::String(_visible ? "true" : "false"));
 
 	Element::debugInspect(report);
 }
@@ -8139,10 +8390,10 @@ MiniscriptInstructionOutcome VisualElement::scriptSetLayer(MiniscriptThread *thr
 
 MiniscriptInstructionOutcome VisualElement::scriptWriteRefPositionAttribute(MiniscriptThread *thread, DynamicValueWriteProxy &writeProxy, const Common::String &attrib) {
 	if (attrib == "x") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetPositionX>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetPositionX, true>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "y") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetPositionY>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetPositionY, true>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	}
 
@@ -8151,10 +8402,10 @@ MiniscriptInstructionOutcome VisualElement::scriptWriteRefPositionAttribute(Mini
 
 MiniscriptInstructionOutcome VisualElement::scriptWriteRefCenterPositionAttribute(MiniscriptThread *thread, DynamicValueWriteProxy &writeProxy, const Common::String &attrib) {
 	if (attrib == "x") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetCenterPositionX>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetCenterPositionX, true>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	} else if (attrib == "y") {
-		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetCenterPositionY>::create(this, writeProxy);
+		DynamicValueWriteFuncHelper<VisualElement, &VisualElement::scriptSetCenterPositionY, true>::create(this, writeProxy);
 		return kMiniscriptInstructionOutcomeContinue;
 	}
 
@@ -8192,7 +8443,7 @@ VThreadState VisualElement::changeVisibilityTask(const ChangeFlagTaskData &taskD
 	if (_visible != taskData.desiredFlag) {
 		setVisible(taskData.runtime, taskData.desiredFlag);
 
-		Common::SharedPtr<MessageProperties> msgProps(new MessageProperties(Event(_visible ? EventIDs::kElementHide : EventIDs::kElementShow, 0), DynamicValue(), getSelfReference()));
+		Common::SharedPtr<MessageProperties> msgProps(new MessageProperties(Event(taskData.desiredFlag ? EventIDs::kElementShow : EventIDs::kElementHide, 0), DynamicValue(), getSelfReference()));
 		Common::SharedPtr<MessageDispatch> dispatch(new MessageDispatch(msgProps, this, false, true, false));
 		taskData.runtime->sendMessageOnVThread(dispatch);
 	}
@@ -8473,8 +8724,34 @@ void Modifier::debugInspect(IDebugInspectionReport *report) const {
 
 #endif /* MTROPOLIS_DEBUG_ENABLE */
 
+VariableStorage::~VariableStorage() {
+}
+
+VariableModifier::VariableModifier(const Common::SharedPtr<VariableStorage> &storage) : _storage(storage) {
+}
+
+VariableModifier::VariableModifier(const VariableModifier &other) : Modifier(other), _storage(other._storage->clone()) {
+}
+
 bool VariableModifier::isVariable() const {
 	return true;
+}
+
+bool VariableModifier::isListVariable() const {
+	return false;
+}
+
+
+Common::SharedPtr<ModifierSaveLoad> VariableModifier::getSaveLoad() {
+	return _storage->getSaveLoad();
+}
+
+const Common::SharedPtr<VariableStorage> &VariableModifier::getStorage() const {
+	return _storage;
+}
+
+void VariableModifier::setStorage(const Common::SharedPtr<VariableStorage> &storage) {
+	_storage = storage;
 }
 
 bool VariableModifier::readAttribute(MiniscriptThread *thread, DynamicValue &result, const Common::String &attrib) {

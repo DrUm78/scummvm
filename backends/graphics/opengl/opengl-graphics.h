@@ -324,6 +324,8 @@ protected:
 
 	void updateLinearFiltering();
 
+	Pipeline *getPipeline() const { return _pipeline; }
+
 	/**
 	 * The default pixel format of the backend.
 	 */
@@ -348,14 +350,6 @@ protected:
 	 * The game palette if in CLUT8 mode.
 	 */
 	byte _gamePalette[3 * 256];
-
-#if !USE_FORCED_GLES
-	/**
-	 * The render target for the virtual game screen. Used when
-	 * LibRetro shaders are enabled.
-	 */
-	TextureTarget *_gameScreenTarget;
-#endif
 
 	//
 	// Overlay

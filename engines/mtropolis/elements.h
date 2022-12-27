@@ -107,6 +107,8 @@ public:
 #ifdef MTROPOLIS_DEBUG_ENABLE
 	const char *debugGetTypeName() const override { return "Movie Element"; }
 	SupportStatus debugGetSupportStatus() const override { return kSupportStatusDone; }
+
+	void debugSkipMovies() override;
 #endif
 
 protected:
@@ -171,8 +173,6 @@ private:
 	Common::SharedPtr<SubtitlePlayer> _subtitles;
 
 	Common::Array<int> _damagedFrames;
-
-	Runtime *_runtime;
 };
 
 class ImageElement : public VisualElement {
@@ -193,6 +193,7 @@ public:
 #ifdef MTROPOLIS_DEBUG_ENABLE
 	const char *debugGetTypeName() const override { return "Image Element"; }
 	SupportStatus debugGetSupportStatus() const override { return kSupportStatusDone; }
+	void debugInspect(IDebugInspectionReport *report) const override;
 #endif
 
 private:
@@ -204,8 +205,6 @@ private:
 	Common::SharedPtr<CachedImage> _cachedImage;
 
 	Common::String _text;	// ...???
-
-	Runtime *_runtime;
 };
 
 class MToonElement : public VisualElement, public IPlayMediaSignalReceiver {
@@ -234,6 +233,7 @@ public:
 #ifdef MTROPOLIS_DEBUG_ENABLE
 	const char *debugGetTypeName() const override { return "mToon Element"; }
 	SupportStatus debugGetSupportStatus() const override { return kSupportStatusDone; }
+	void debugInspect(IDebugInspectionReport *report) const override;
 #endif
 
 private:
@@ -268,6 +268,7 @@ private:
 
 	MiniscriptInstructionOutcome scriptRangeWriteRefAttribute(MiniscriptThread *thread, DynamicValueWriteProxy &result, const Common::String &attrib);
 	MiniscriptInstructionOutcome scriptSetRangeTyped(MiniscriptThread *thread, const IntRange &value);
+	MiniscriptInstructionOutcome scriptSetRangeTyped(MiniscriptThread *thread, const Common::Point &value);
 
 	void onPauseStateChanged() override;
 
@@ -282,7 +283,6 @@ private:
 	uint32 _celStartTimeMSec;
 	bool _isPlaying;	// Is actually rolling media, this is only set by playMedia because it needs to start after scene transition
 
-	Runtime *_runtime;
 	Common::SharedPtr<Graphics::ManagedSurface> _renderSurface;
 	uint32 _renderedFrame;
 
@@ -356,8 +356,6 @@ private:
 	// If you need to render again, recreate the surface.  If you want to change
 	// this behavior, please add a flag indicating that it is from the asset.
 	Common::SharedPtr<Graphics::ManagedSurface> _renderedText;
-
-	Runtime *_runtime;
 };
 
 class SoundElement : public NonVisualElement, public IPlayMediaSignalReceiver {
@@ -378,6 +376,8 @@ public:
 	bool canAutoPlay() const override;
 
 	void playMedia(Runtime *runtime, Project *project) override;
+
+	bool resolveMediaMarkerLabel(const Label &label, int32 &outResolution) const override;
 
 #ifdef MTROPOLIS_DEBUG_ENABLE
 	const char *debugGetTypeName() const override { return "Sound Element"; }
@@ -423,8 +423,6 @@ private:
 	Common::SharedPtr<PlayMediaSignaller> _playMediaSignaller;
 
 	Common::SharedPtr<SubtitlePlayer> _subtitlePlayer;
-
-	Runtime *_runtime;
 };
 
 } // End of namespace MTropolis

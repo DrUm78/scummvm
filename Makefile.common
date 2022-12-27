@@ -36,8 +36,14 @@ MODULES += \
 	audio \
 	math \
 	common \
+	common/compression \
+	common/formats \
 	po \
 	doc
+
+ifdef USE_LUA
+MODULES += common/lua
+endif
 
 ifdef USE_MT32EMU
 MODULES += audio/softsynth/mt32
@@ -461,6 +467,9 @@ endif
 ifdef ENABLE_XEEN
 DIST_FILES_ENGINEDATA+=xeen.ccs
 endif
+ifdef ENABLE_FREESCAPE
+DIST_FILES_ENGINEDATA+=freescape.dat
+endif
 ifdef USE_FREETYPE2
 DIST_FILES_ENGINEDATA+=fonts.dat
 endif
@@ -500,6 +509,9 @@ DIST_FILES_SHADERS+=$(wildcard $(srcdir)/engines/wintermute/base/gfx/opengl/shad
 endif
 ifdef ENABLE_PLAYGROUND3D
 DIST_FILES_SHADERS+=$(wildcard $(srcdir)/engines/playground3d/shaders/*)
+endif
+ifdef ENABLE_HPL1
+DIST_FILES_SHADERS+=$(wildcard $(srcdir)/engines/hpl1/engine/impl/shaders/*)
 endif
 endif
 

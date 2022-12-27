@@ -22,40 +22,18 @@
 
 #include "common/endian.h"
 
+#include "scumm/bomp.h"
+
 namespace Scumm {
 
-void smush_decode_codec1(byte *dst, const byte *src, int left, int top, int width, int height, int pitch) {
-	byte val, code;
-	int32 length;
-	int h = height, size_line;
-
+void smushDecodeRLE(byte *dst, const byte *src, int left, int top, int width, int height, int pitch) {
 	dst += top * pitch;
-	for (h = 0; h < height; h++) {
-		size_line = READ_LE_UINT16(src);
-		src += 2;
+	do {
 		dst += left;
-		while (size_line > 0) {
-			code = *src++;
-			size_line--;
-			length = (code >> 1) + 1;
-			if (code & 1) {
-				val = *src++;
-				size_line--;
-				if (val)
-					memset(dst, val, length);
-				dst += length;
-			} else {
-				size_line -= length;
-				while (length--) {
-					val = *src++;
-					if (val)
-						*dst = val;
-					dst++;
-				}
-			}
-		}
-		dst += pitch - left - width;
-	}
+		bompDecodeLine(dst, src + 2, width, false);
+		src += READ_LE_UINT16(src) + 2;
+		dst += pitch - left;
+	} while (--height);
 }
 
 } // End of namespace Scumm

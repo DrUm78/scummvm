@@ -50,11 +50,6 @@ public:
 
 	void setUsecodeNotify(UCProcess *ucp);
 
-	// Dragging
-	bool StartDraggingChild(Gump *gump, int32 mx, int32 my) override;
-	void DraggingChild(Gump *gump, int mx, int my) override;
-	void StopDraggingChild(Gump *gump) override;
-
 	bool OnKeyDown(int key, int mod) override;
 
 	bool loadData(Common::ReadStream *rs, uint32 version);
@@ -71,9 +66,7 @@ protected:
 	int16 _renderedValue;
 	RenderedText *_renderedText;
 
-	int getSliderPos();
 	void setSliderPos();
-	void setValueFromSlider(int sliderx);
 	void drawText(RenderSurface *surf);
 };
 

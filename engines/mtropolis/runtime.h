@@ -856,6 +856,8 @@ struct DynamicValue {
 
 	bool convertToType(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const;
 
+	DynamicValue dereference() const;
+
 	DynamicValue &operator=(const DynamicValue &other);
 
 	bool operator==(const DynamicValue &other) const;
@@ -903,6 +905,9 @@ private:
 	bool convertIntToType(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const;
 	bool convertFloatToType(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const;
 	bool convertBoolToType(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const;
+	bool convertStringToType(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const;
+
+	bool convertToTypeNoDereference(DynamicValueTypes::DynamicValueType targetType, DynamicValue &result) const;
 
 	void setFromOther(const DynamicValue &other);
 
@@ -951,13 +956,15 @@ private:
 template<class TFloat>
 struct DynamicValueWriteFloatHelper {
 	static MiniscriptInstructionOutcome write(MiniscriptThread *thread, const DynamicValue &value, void *objectRef, uintptr ptrOrOffset) {
+		DynamicValue derefValue = value.dereference();
+
 		TFloat &dest = *static_cast<TFloat *>(objectRef);
-		switch (value.getType()) {
+		switch (derefValue.getType()) {
 		case DynamicValueTypes::kFloat:
-			dest = static_cast<TFloat>(value.getFloat());
+			dest = static_cast<TFloat>(derefValue.getFloat());
 			return kMiniscriptInstructionOutcomeContinue;
 		case DynamicValueTypes::kInteger:
-			dest = static_cast<TFloat>(value.getInt());
+			dest = static_cast<TFloat>(derefValue.getInt());
 			return kMiniscriptInstructionOutcomeContinue;
 		default:
 			return kMiniscriptInstructionOutcomeFailed;
@@ -980,13 +987,15 @@ struct DynamicValueWriteFloatHelper {
 template<class TInteger>
 struct DynamicValueWriteIntegerHelper {
 	static MiniscriptInstructionOutcome write(MiniscriptThread *thread, const DynamicValue &value, void *objectRef, uintptr ptrOrOffset) {
+		DynamicValue derefValue = value.dereference();
+
 		TInteger &dest = *static_cast<TInteger *>(objectRef);
-		switch (value.getType()) {
+		switch (derefValue.getType()) {
 		case DynamicValueTypes::kFloat:
-			dest = static_cast<TInteger>(floor(value.getFloat() + 0.5));
+			dest = static_cast<TInteger>(floor(derefValue.getFloat() + 0.5));
 			return kMiniscriptInstructionOutcomeContinue;
 		case DynamicValueTypes::kInteger:
-			dest = static_cast<TInteger>(value.getInt());
+			dest = static_cast<TInteger>(derefValue.getInt());
 			return kMiniscriptInstructionOutcomeContinue;
 		default:
 			return kMiniscriptInstructionOutcomeFailed;
@@ -1041,7 +1050,9 @@ struct DynamicValueWriteDiscardHelper {
 template<class TClass, MiniscriptInstructionOutcome (TClass::*TWriteMethod)(MiniscriptThread *thread, const DynamicValue &dest), MiniscriptInstructionOutcome (TClass::*TRefAttribMethod)(MiniscriptThread *thread, DynamicValueWriteProxy &proxy, const Common::String &attrib)>
 struct DynamicValueWriteOrRefAttribFuncHelper {
 	static MiniscriptInstructionOutcome write(MiniscriptThread *thread, const DynamicValue &dest, void *objectRef, uintptr ptrOrOffset) {
-		return (static_cast<TClass *>(objectRef)->*TWriteMethod)(thread, dest);
+		DynamicValue derefValue = dest.dereference();
+
+		return (static_cast<TClass *>(objectRef)->*TWriteMethod)(thread, derefValue);
 	}
 	static MiniscriptInstructionOutcome refAttrib(MiniscriptThread *thread, DynamicValueWriteProxy &proxy, void *objectRef, uintptr ptrOrOffset, const Common::String &attrib) {
 		return (static_cast<TClass *>(objectRef)->*TRefAttribMethod)(thread, proxy, attrib);
@@ -1057,10 +1068,13 @@ struct DynamicValueWriteOrRefAttribFuncHelper {
 	}
 };
 
-template<class TClass, MiniscriptInstructionOutcome (TClass::*TWriteMethod)(MiniscriptThread *thread, const DynamicValue &dest)>
+template<class TClass, MiniscriptInstructionOutcome (TClass::*TWriteMethod)(MiniscriptThread *thread, const DynamicValue &dest), bool TDereference>
 struct DynamicValueWriteFuncHelper {
 	static MiniscriptInstructionOutcome write(MiniscriptThread *thread, const DynamicValue &dest, void *objectRef, uintptr ptrOrOffset) {
-		return (static_cast<TClass *>(objectRef)->*TWriteMethod)(thread, dest);
+		if (TDereference) {
+			return (static_cast<TClass *>(objectRef)->*TWriteMethod)(thread, dest.dereference());
+		} else
+			return (static_cast<TClass *>(objectRef)->*TWriteMethod)(thread, dest);
 	}
 	static MiniscriptInstructionOutcome refAttrib(MiniscriptThread *thread, DynamicValueWriteProxy &proxy, void *objectRef, uintptr ptrOrOffset, const Common::String &attrib) {
 		return kMiniscriptInstructionOutcomeFailed;
@@ -1072,7 +1086,7 @@ struct DynamicValueWriteFuncHelper {
 	static void create(TClass *obj, DynamicValueWriteProxy &proxy) {
 		proxy.pod.ptrOrOffset = 0;
 		proxy.pod.objectRef = obj;
-		proxy.pod.ifc = DynamicValueWriteInterfaceGlue<DynamicValueWriteFuncHelper<TClass, TWriteMethod> >::getInstance();
+		proxy.pod.ifc = DynamicValueWriteInterfaceGlue<DynamicValueWriteFuncHelper<TClass, TWriteMethod, TDereference> >::getInstance();
 	}
 };
 
@@ -1092,12 +1106,13 @@ struct MessengerSendSpec {
 
 	void linkInternalReferences(ObjectLinkingScope *outerScope);
 	void visitInternalReferences(IStructuralReferenceVisitor *visitor);
-	void resolveDestination(Runtime *runtime, Modifier *sender, Common::WeakPtr<Structural> &outStructuralDest, Common::WeakPtr<Modifier> &outModifierDest, RuntimeObject *customDestination) const;
+
+	void resolveDestination(Runtime *runtime, Modifier *sender, RuntimeObject *triggerSource, Common::WeakPtr<Structural> &outStructuralDest, Common::WeakPtr<Modifier> &outModifierDest, RuntimeObject *customDestination) const;
 
 	static void resolveVariableObjectType(RuntimeObject *obj, Common::WeakPtr<Structural> &outStructuralDest, Common::WeakPtr<Modifier> &outModifierDest);
 
-	void sendFromMessenger(Runtime *runtime, Modifier *sender, const DynamicValue &incomingData, RuntimeObject *customDestination) const;
-	void sendFromMessengerWithCustomData(Runtime *runtime, Modifier *sender, const DynamicValue &data, RuntimeObject *customDestination) const;
+	void sendFromMessenger(Runtime *runtime, Modifier *sender, RuntimeObject *triggerSource, const DynamicValue &incomingData, RuntimeObject *customDestination) const;
+	void sendFromMessengerWithCustomData(Runtime *runtime, Modifier *sender, RuntimeObject *triggerSource, const DynamicValue &data, RuntimeObject *customDestination) const;
 
 	enum LinkType {
 		kLinkTypeNotYetLinked,
@@ -1464,6 +1479,8 @@ enum OSEventType {
 	kOSEventTypeMouseMove,
 
 	kOSEventTypeKeyboard,
+
+	kOSEventTypeAction,
 };
 
 class OSEvent {
@@ -1503,6 +1520,16 @@ private:
 	Common::EventType _keyEventType;
 	bool _repeat;
 	const Common::KeyState _keyEvt;
+};
+
+class ActionEvent : public OSEvent {
+public:
+	explicit ActionEvent(OSEventType osEventType, Actions::Action action);
+
+	Actions::Action getAction() const;
+
+private:
+	Actions::Action _action;
 };
 
 struct DragMotionProperties {
@@ -1613,12 +1640,15 @@ public:
 	void onMouseMove(int32 x, int32 y);
 	void onMouseUp(int32 x, int32 y, Actions::MouseButton mButton);
 	void onKeyboardEvent(const Common::EventType evtType, bool repeat, const Common::KeyState &keyEvt);
+	void onAction(MTropolis::Actions::Action action);
 
 	const Common::Point &getCachedMousePosition() const;
 	void setModifierCursorOverride(uint32 cursorID);
 	void clearModifierCursorOverride();
 	void forceCursorRefreshOnce();
 	void setAutoResetCursor(bool enabled);
+
+	uint getMultiClickCount() const;
 
 	bool isAwaitingSceneTransition() const;
 
@@ -1708,6 +1738,12 @@ private:
 		Common::SharedPtr<KeyEventDispatch> dispatch;
 	};
 
+	struct DispatchActionTaskData {
+		DispatchActionTaskData();
+
+		Actions::Action action;
+	};
+
 	struct ConsumeMessageTaskData {
 		ConsumeMessageTaskData();
 
@@ -1786,6 +1822,7 @@ private:
 
 	VThreadState dispatchMessageTask(const DispatchMethodTaskData &data);
 	VThreadState dispatchKeyTask(const DispatchKeyTaskData &data);
+	VThreadState dispatchActionTask(const DispatchActionTaskData &data);
 	VThreadState consumeMessageTask(const ConsumeMessageTaskData &data);
 	VThreadState consumeCommandTask(const ConsumeCommandTaskData &data);
 	VThreadState updateMouseStateTask(const UpdateMouseStateTaskData &data);
@@ -1820,6 +1857,7 @@ private:
 	Common::SharedPtr<Graphics::ManagedSurface> _sceneTransitionNewFrame;
 	uint32 _sceneTransitionStartTime;
 	uint32 _sceneTransitionEndTime;
+	bool _sharedSceneWasSetExplicitly;
 
 	Common::WeakPtr<Window> _mainWindow;
 	Common::Array<Common::SharedPtr<Window> > _windows;
@@ -1887,6 +1925,10 @@ private:
 
 	uint32 _modifierOverrideCursorID;
 	bool _haveModifierOverrideCursor;
+
+	uint32 _multiClickStartTime;
+	uint32 _multiClickInterval;
+	uint _multiClickCount;
 
 	bool _defaultVolumeState;
 
@@ -2007,7 +2049,10 @@ private:
 	MiniscriptInstructionOutcome setAutoResetCursor(MiniscriptThread *thread, const DynamicValue &value);
 	MiniscriptInstructionOutcome setWinSndBufferSize(MiniscriptThread *thread, const DynamicValue &value);
 
+	int32 _opInt;
 	bool _gameMode;
+	bool _combineRedraws;
+	bool _postponeRedraws;
 };
 
 class AssetManagerInterface : public RuntimeObject {
@@ -2054,6 +2099,7 @@ public:
 class Structural : public RuntimeObject, public IModifierContainer, public IMessageConsumer, public Debuggable {
 public:
 	Structural();
+	explicit Structural(Runtime *runtime);
 	virtual ~Structural();
 
 	bool isStructural() const override;
@@ -2103,6 +2149,8 @@ public:
 	SupportStatus debugGetSupportStatus() const override;
 	const Common::String &debugGetName() const override;
 	void debugInspect(IDebugInspectionReport *report) const override;
+
+	virtual void debugSkipMovies();
 #endif
 
 protected:
@@ -2117,6 +2165,8 @@ protected:
 	virtual void linkInternalReferences(ObjectLinkingScope *outerScope);
 
 	virtual void onPauseStateChanged();
+
+	Runtime *getRuntime() const;
 
 	Structural *_parent;
 	Common::Array<Common::SharedPtr<Structural> > _children;
@@ -2137,6 +2187,9 @@ protected:
 	int32 _flushPriority;
 
 	Common::SharedPtr<StructuralHooks> _hooks;
+
+private:
+	Runtime *_runtime;
 };
 
 struct ProjectPresentationSettings {
@@ -2272,6 +2325,11 @@ struct IPostEffect : public IInterfaceBase {
 	virtual void renderPostEffect(Graphics::ManagedSurface &surface) const = 0;
 };
 
+struct IMediaCueModifier : public IInterfaceBase {
+	virtual Modifier *getMediaCueModifier() = 0;
+	virtual Common::WeakPtr<Modifier> getMediaCueTriggerSource() const = 0;
+};
+
 struct MediaCueState {
 	enum TriggerTiming {
 		kTriggerTimingStart = 0,
@@ -2282,7 +2340,7 @@ struct MediaCueState {
 	int32 minTime;
 	int32 maxTime;
 
-	Modifier *sourceModifier;
+	IMediaCueModifier *sourceModifier;
 	TriggerTiming triggerTiming;
 	MessengerSendSpec send;
 	DynamicValue incomingData;
@@ -2304,6 +2362,7 @@ public:
 	void loadSceneFromStream(const Common::SharedPtr<Structural> &structural, uint32 streamID, const Hacks &hacks);
 
 	Common::SharedPtr<Modifier> resolveAlias(uint32 aliasID) const;
+	Common::SharedPtr<Modifier> findGlobalVarWithName(const Common::String &name) const;
 	void materializeGlobalVariables(Runtime *runtime, ObjectLinkingScope *scope);
 
 	const ProjectPresentationSettings &getPresentationSettings() const;
@@ -2440,8 +2499,6 @@ private:
 	Common::SharedPtr<KeyboardEventSignaller> _keyboardEventSignaller;
 
 	SubtitleTables _subtitles;
-
-	Runtime *_runtime;
 };
 
 class Section : public Structural {
@@ -2618,6 +2675,9 @@ public:
 	virtual bool isTextLabel() const;
 
 	VThreadState consumeCommand(Runtime *runtime, const Common::SharedPtr<MessageProperties> &msg) override;
+
+	bool respondsToEvent(const Event &evt) const override;
+	VThreadState consumeMessage(Runtime *runtime, const Common::SharedPtr<MessageProperties> &msg) override;
 
 	bool isVisible() const;
 	void setVisible(Runtime *runtime, bool visible);
@@ -2851,12 +2911,29 @@ protected:
 	Common::SharedPtr<ModifierHooks> _hooks;
 };
 
+class VariableStorage {
+public:
+	virtual ~VariableStorage();
+	virtual Common::SharedPtr<ModifierSaveLoad> getSaveLoad() = 0;
+
+	virtual Common::SharedPtr<VariableStorage> clone() const = 0;
+};
+
 class VariableModifier : public Modifier {
 public:
+	explicit VariableModifier(const Common::SharedPtr<VariableStorage> &storage);
+	VariableModifier(const VariableModifier &other);
+
 	virtual bool isVariable() const override;
+	virtual bool isListVariable() const;
+
+	virtual Common::SharedPtr<ModifierSaveLoad> getSaveLoad() override final;
+
+	const Common::SharedPtr<VariableStorage> &getStorage() const;
+	void setStorage(const Common::SharedPtr<VariableStorage> &storage);
+
 	virtual bool varSetValue(MiniscriptThread *thread, const DynamicValue &value) = 0;
 	virtual void varGetValue(DynamicValue &dest) const = 0;
-	virtual Common::SharedPtr<ModifierSaveLoad> getSaveLoad() override = 0;
 
 	bool readAttribute(MiniscriptThread *thread, DynamicValue &result, const Common::String &attrib) override;
 
@@ -2865,11 +2942,16 @@ public:
 	virtual DynamicValueWriteProxy createWriteProxy();
 
 private:
+	VariableModifier() = delete;
+
 	struct WriteProxyInterface {
 		static MiniscriptInstructionOutcome write(MiniscriptThread *thread, const DynamicValue &dest, void *objectRef, uintptr ptrOrOffset);
 		static MiniscriptInstructionOutcome refAttrib(MiniscriptThread *thread, DynamicValueWriteProxy &proxy, void *objectRef, uintptr ptrOrOffset, const Common::String &attrib);
 		static MiniscriptInstructionOutcome refAttribIndexed(MiniscriptThread *thread, DynamicValueWriteProxy &proxy, void *objectRef, uintptr ptrOrOffset, const Common::String &attrib, const DynamicValue &index);
 	};
+
+protected:
+	Common::SharedPtr<VariableStorage> _storage;
 };
 
 enum AssetType {

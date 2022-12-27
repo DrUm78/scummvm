@@ -42,26 +42,32 @@ struct ShaderPass;
 } // End of namespace LibRetro
 
 class TextureTarget;
+class LibRetroTextureTarget;
 
 /**
  * Pipeline implementation using Libretro shader presets.
  */
-class LibRetroPipeline : public ShaderPipeline {
+class LibRetroPipeline : public Pipeline {
 public:
 	LibRetroPipeline();
 	LibRetroPipeline(const Common::FSNode &shaderPreset);
-	virtual ~LibRetroPipeline();
+	~LibRetroPipeline() override;
 
-	virtual void drawTexture(const GLTexture &texture, const GLfloat *coordinates, const GLfloat *texcoords);
-
-	virtual void setProjectionMatrix(const GLfloat *projectionMatrix);
-
-	void setOutputSize(uint outputWidth, uint outputHeight);
+	void setColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a) override;
+	void setProjectionMatrix(const Math::Matrix4 &projectionMatrix) override;
 
 	bool open(const Common::FSNode &shaderPreset);
 	void close();
 
-	bool isInitialized() const { return _shaderPreset != nullptr; }
+	/* Called by OpenGLGraphicsManager */
+	void enableLinearFiltering(bool enabled) { _linearFiltering = enabled; }
+	/* Called by OpenGLGraphicsManager to setup the internal objects sizes */
+	void setDisplaySizes(uint inputWidth, uint inputHeight, const Common::Rect &outputRect);
+	/* Called by OpenGLGraphicsManager to indicate that next draws need to be scaled. */
+	void beginScaling();
+	/* Called by OpenGLGraphicsManager to indicate that next draws don't need to be scaled.
+	 * This must be called to execute scaling. */
+	void finishScaling();
 	bool isAnimated() const { return _isAnimated; }
 
 	static bool isSupportedByContext() {
@@ -70,8 +76,9 @@ public:
 			&& OpenGLContext.framebufferObjectSupported;
 	}
 private:
-	virtual void activateInternal();
-	virtual void deactivateInternal();
+	void activateInternal() override;
+	void deactivateInternal() override;
+	void drawTextureInternal(const GLTexture &texture, const GLfloat *coordinates, const GLfloat *texcoords) override;
 
 	bool loadTextures();
 	bool loadPasses();
@@ -81,20 +88,27 @@ private:
 	void setupPassUniforms(const uint id);
 	void setShaderTexUniforms(const Common::String &prefix, Shader *shader, const GLTexture &texture);
 
-	const LibRetro::ShaderPreset *_shaderPreset;
+	/* Pipelines used to draw all layers
+	 * First before the scaler then after it to draw on screen
+	 */
+	ShaderPipeline _inputPipeline;
+	ShaderPipeline _outputPipeline;
+	bool _needsScaling;
 
-	bool _applyProjectionChanges;
+	const LibRetro::ShaderPreset *_shaderPreset;
 
 	uint _inputWidth;
 	uint _inputHeight;
+	Common::Rect _outputRect;
 
-	bool _outputSizeChanged;
-	uint _outputWidth;
-	uint _outputHeight;
+	bool _linearFiltering;
 
 	/* Determines if preset depends on frameCount or from previous frames */
 	bool _isAnimated;
 	uint _frameCount;
+
+	Common::Array<LibRetroTextureTarget> _inputTargets;
+	uint _currentTarget;
 
 	struct Texture {
 		Texture() : textureData(nullptr), glTexture(nullptr) {}
@@ -111,11 +125,11 @@ private:
 
 	struct Pass {
 		Pass()
-			: shaderPass(nullptr), shader(nullptr), target(nullptr),
-			  texCoords(), texSamplers(), inputTexture(nullptr), vertexCoord(), hasFrameCount(false) {}
+			: shaderPass(nullptr), shader(nullptr), target(nullptr), texCoords(), texSamplers(),
+			inputTexture(nullptr), vertexCoord(), hasFrameCount(false), prevCount(0) {}
 		Pass(const LibRetro::ShaderPass *sP, Shader *s, TextureTarget *t)
-			: shaderPass(sP), shader(s), target(t), texCoords(),
-			  texSamplers(), inputTexture(nullptr), vertexCoord(), hasFrameCount(false) {}
+			: shaderPass(sP), shader(s), target(t), texCoords(), texSamplers(),
+			inputTexture(nullptr), vertexCoord(), hasFrameCount(false), prevCount(0) {}
 
 		const LibRetro::ShaderPass *shaderPass;
 		Shader *shader;
@@ -224,7 +238,7 @@ private:
 		 */
 		void buildTexSamplers(const uint id, const TextureArray &textures, const Common::StringArray &aliases);
 
-		void addTexSampler(const Common::String &name, uint *unit, const TextureSampler::Type type, const uint index, const bool prefixIsId = false);
+		bool addTexSampler(const Common::String &name, uint *unit, const TextureSampler::Type type, const uint index, const bool prefixIsId = false);
 
 		/**
 		 * Input texture of the pass.
@@ -241,6 +255,11 @@ private:
 		 * Allows to speed up if it is not here
 		 */
 		bool hasFrameCount;
+
+		/**
+		 * The number of previous frames this pass needs
+		 */
+		uint prevCount;
 	};
 
 	typedef Common::Array<Pass> PassArray;

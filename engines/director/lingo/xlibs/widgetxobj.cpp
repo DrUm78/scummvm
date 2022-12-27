@@ -73,7 +73,7 @@ WidgetXObject::WidgetXObject(ObjectType ObjectType) :Object<WidgetXObject>("Widg
 }
 
 void WidgetXObj::m_new(int nargs) {
-	g_lingo->push(g_lingo->_currentMe);
+	g_lingo->push(g_lingo->_state->me);
 }
 
 void WidgetXObj::m_dispose(int nargs) {
@@ -91,4 +91,4 @@ void WidgetXObj::m_askQuit(int nargs) {
 	g_lingo->dropStack(nargs);
 }
 
-}
+} // End of namespace Director

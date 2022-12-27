@@ -50,7 +50,7 @@ void decompressBomp(byte *dst, const byte *src, int w, int h) {
 	} while (--h);
 }
 
-void bompDecodeLine(byte *dst, const byte *src, int len) {
+void bompDecodeLine(byte *dst, const byte *src, int len, bool setZero) {
 	assert(len > 0);
 
 	int num;
@@ -64,12 +64,24 @@ void bompDecodeLine(byte *dst, const byte *src, int len) {
 		len -= num;
 		if (code & 1) {
 			color = *src++;
-			memset(dst, color, num);
+			if (setZero || color)
+				memset(dst, color, num);
+			dst += num;
 		} else {
-			memcpy(dst, src, num);
-			src += num;
+			if (setZero) {
+				// Copy optimization when transparency is not needed
+				memcpy(dst, src, num);
+				src += num;
+				dst += num;
+			} else {
+				while (num--) {
+					color = *src++;
+					if (color)
+						*dst = color;
+					dst++;
+				}
+			}
 		}
-		dst += num;
 	}
 }
 
@@ -325,7 +337,8 @@ void drawBomp(const BompDrawData &bd) {
 
 		// Advance to the next line
 		pos_y++;
-		mask += bd.numStrips;
+		if (bd.maskPtr)
+			mask += bd.numStrips;
 		dst += bd.dst.pitch;
 	}
 }

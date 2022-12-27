@@ -40,7 +40,7 @@ TextRenderer_v7::TextRenderer_v7(ScummEngine *vm, GlyphRenderer_v7 *gr)	:
 	_direction(vm->_language == Common::HE_ISR ? -1 : 1),
 	_rtlCenteredOffset(vm->_language == Common::HE_ISR ? 1 : 0),
 	_spacing(vm->_language != Common::JA_JPN ? 1 : 0),
-	_lineBreakMarker(vm->_newLineCharacter),
+	_lineBreakMarker((char)vm->_newLineCharacter),
 	_newStyle (gr->newStyleWrapping()),
 	_gr(gr) {
 }
@@ -229,8 +229,8 @@ void TextRenderer_v7::drawString(const char *str, byte *buffer, Common::Rect &cl
 
 	clipRect.left = MAX<int>(0, ((flags & kStyleAlignCenter) ? x - maxWidth / 2 : ((flags & kStyleAlignRight) ? x - maxWidth : x)) - xAdj);
 	clipRect.right = MIN<int>(clipRect.right, clipRect.left + xAdj + maxWidth);
-	clipRect.top = y2;
-	clipRect.bottom = y + (_newStyle ? 0 : 1);
+	clipRect.top = y2 - (_newStyle ? 0 : 2);
+	clipRect.bottom = y + (_newStyle ? 0 : 2);
 }
 
 void TextRenderer_v7::drawStringWrap(const char *str, byte *buffer, Common::Rect &clipRect, int x, int y, int pitch, int16 col, TextStyleFlags flags) {
@@ -384,8 +384,8 @@ void TextRenderer_v7::drawStringWrap(const char *str, byte *buffer, Common::Rect
 
 	clipRect.left = MAX<int>(0, ((flags & kStyleAlignCenter) ? x - maxWidth / 2 : ((flags & kStyleAlignRight) ? x - maxWidth : x)) - xAdj);
 	clipRect.right = MIN<int>(clipRect.right, clipRect.left + xAdj + maxWidth);
-	clipRect.top = y2;
-	clipRect.bottom = y + (_newStyle ? 0 : 1);
+	clipRect.top = y2 - (_newStyle ? 0 : 2);
+	clipRect.bottom = y + (_newStyle ? 0 : 2);
 }
 
 Common::Rect TextRenderer_v7::calcStringDimensions(const char *str, int x, int y, TextStyleFlags flags) {

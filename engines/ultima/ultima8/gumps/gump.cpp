@@ -27,6 +27,7 @@
 #include "ultima/ultima8/games/game_data.h"
 #include "ultima/ultima8/gumps/gump_notify_process.h"
 #include "ultima/ultima8/kernel/kernel.h"
+#include "ultima/ultima8/kernel/mouse.h"
 #include "ultima/ultima8/kernel/object_manager.h"
 #include "ultima/ultima8/ultima8.h"
 
@@ -376,6 +377,12 @@ void Gump::setRelativePosition(Gump::Position pos, int xoffset, int yoffset) {
 		case BOTTOM_CENTER:
 			Move(rect.width() / 2 - _dims.width() / 2 + xoffset, rect.height() - _dims.height() + yoffset);
 			break;
+		case LEFT_CENTER:
+			Move(xoffset, rect.height() / 2 - _dims.height() / 2 + yoffset);
+			break;
+		case RIGHT_CENTER:
+			Move(rect.width() - _dims.width() + xoffset, rect.height() / 2 - _dims.height() / 2 + yoffset);
+			break;
 		default:
 			break;
 		}
@@ -661,16 +668,23 @@ Gump *Gump::GetRootGump() {
 }
 
 
-bool Gump::StartDraggingChild(Gump *gump, int32 mx, int32 my) {
+bool Gump::onDragStart(int32 mx, int32 my) {
+	if (IsDraggable() && _parent) {
+		ParentToGump(mx, my);
+		Mouse::get_instance()->setDraggingOffset(mx, my);
+		_parent->MoveChildToFront(this);
+		return true;
+	}
 	return false;
 }
 
-void Gump::DraggingChild(Gump *gump, int mx, int my) {
-	CANT_HAPPEN();
+void Gump::onDragStop(int32 mx, int32 my) {
 }
 
-void Gump::StopDraggingChild(Gump *gump) {
-	CANT_HAPPEN();
+void Gump::onDrag(int32 mx, int32 my) {
+	int32 dx, dy;
+	Mouse::get_instance()->getDraggingOffset(dx, dy);
+	Move(mx - dx, my - dy);
 }
 
 //

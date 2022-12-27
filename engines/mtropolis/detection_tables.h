@@ -26,13 +26,6 @@
 
 #include "mtropolis/detection.h"
 
-#define GAMEOPTION_WIDESCREEN_MOD				GUIO_GAMEOPTIONS1
-#define GAMEOPTION_DYNAMIC_MIDI					GUIO_GAMEOPTIONS2
-#define GAMEOPTION_LAUNCH_DEBUG					GUIO_GAMEOPTIONS3
-#define GAMEOPTION_SOUND_EFFECT_SUBTITLES		GUIO_GAMEOPTIONS4
-#define GAMEOPTION_AUTO_SAVE_AT_CHECKPOINTS		GUIO_GAMEOPTIONS5
-#define GAMEOPTION_ENABLE_SHORT_TRANSITIONS		GUIO_GAMEOPTIONS6
-
 namespace MTropolis {
 
 static const MTropolisGameDescription gameDescriptions[] = {
@@ -447,6 +440,145 @@ static const MTropolisGameDescription gameDescriptions[] = {
 		GID_MTI,
 		0,
 		MTBOOT_MTI_DEMO_WIN,
+	},
+	
+	{ // Uncle Albert's Magical Album (German, Windows)
+	  // Original title: Onkel Alberts geheimnisvolles Notizbuch
+	  // Published by Tivola, 1998
+		{
+			"albert1",
+			"",
+			{
+				{ "Albert.exe",   0, "0e513dac9d2a0d7cfcdc670cab2a9bda", 757760 },
+				{ "album411.MPL", 0, "08a742f5087d25e8ee45c2fcd57ad9a6", 17979781 },
+				{ "album412.MPX", 0, "79fabc94dafd0e0f3ab93c138c4c8c82", 298762355 },
+				// { "BASIC.X95",    0, "a1b474e90cc285bfdcfa87355f890b9e", 242688 },
+				// { "BITMAP.R95",   0, "2bf7305eca9df63dbc75f55093b84cc0", 81408 },
+				// { "CURSORS.C95",  0, "c1e2eebe7183b5ea33de7872a8ea4d2b", 87040 },
+				// { "EXTRAS.R95",   0, "c5830771609c774de9dbeaa5dff69b3e", 185344 },
+				// { "ROTATORK.R95", 0, "c271f786f028c0076635bea49a2be890", 66560 },
+				AD_LISTEND
+			},
+			Common::DE_DEU,
+			Common::kPlatformWindows,
+			ADGF_UNSTABLE,
+			GUIO0()
+		},
+		GID_ALBERT1,
+		0,
+		MTBOOT_ALBERT1_WIN_DE,
+	},
+
+	{ // Uncle Albert's Fabulous Voyage (German, Windows)
+	  // Original title: Alberts abenteuerliche Reise
+	  // Published by Tivola, 2000
+		{
+			"albert2",
+			"",
+			{
+				{ "reise.exe",    0, "0e513dac9d2a0d7cfcdc670cab2a9bda", 757760 },
+				{ "voyage1.MPL",  0, "fe202ad897cb6cf5303f2f046e8123d5", 26122297 },
+				{ "voyage2.MPX",  0, "6554893511e08bf2e0d5770b7854589f", 261888657 },
+				// { "BASIC.X95",    0, "a1b474e90cc285bfdcfa87355f890b9e", 242688 },
+				// { "BITMAP.R95",   0, "2bf7305eca9df63dbc75f55093b84cc0", 81408 },
+				// { "CURSORS.C95",  0, "c1e2eebe7183b5ea33de7872a8ea4d2b", 87040 },
+				// { "EXTRAS.R95",   0, "c5830771609c774de9dbeaa5dff69b3e", 185344 },
+				// { "ROTATORK.R95", 0, "c271f786f028c0076635bea49a2be890", 66560 },
+				AD_LISTEND
+			},
+			Common::DE_DEU,
+			Common::kPlatformWindows,
+			ADGF_UNSTABLE,
+			GUIO0()
+		},
+		GID_ALBERT2,
+		0,
+		MTBOOT_ALBERT2_WIN_DE,
+	},
+
+	{ // Uncle Albert's Mysterious Island (German, Windows)
+	  // Original title: Alberts mysteriöse Insel
+	  // Published by Tivola, 2001
+		{
+			"albert3",
+			"",
+			{
+				{ "insel.exe",      0, "0e513dac9d2a0d7cfcdc670cab2a9bda", 757760 },
+				{ "ile_myst1.MPL",  0, "44ac2e944a61303f4028408165bafeb4", 24080377 },
+				{ "ILEMYST2.MPX",   0, "ecb1d2c8b99eb5b2ac6be55893b97f50", 283748531 },
+				// { "BASIC.X95",     0, "a1b474e90cc285bfdcfa87355f890b9e", 242688 },
+				// { "BITMAP.R95",    0, "2bf7305eca9df63dbc75f55093b84cc0", 81408 },
+				// { "CURSORS.C95",   0, "c1e2eebe7183b5ea33de7872a8ea4d2b", 87040 },
+				// { "EXTRAS.R95",    0, "c5830771609c774de9dbeaa5dff69b3e", 185344 },
+				// { "ROTATORK.R95",  0, "c271f786f028c0076635bea49a2be890", 66560 },
+				AD_LISTEND
+			},
+			Common::DE_DEU,
+			Common::kPlatformWindows,
+			ADGF_UNSTABLE,
+			GUIO0()
+		},
+		GID_ALBERT3,
+		0,
+		MTBOOT_ALBERT3_WIN_DE,
+	},
+
+	{ // SPQR: The Empire's Darkest Hour Windows CD-ROM
+		{
+			"spqr",
+			"",
+			{
+				{ "SPQR.MPL", 0, "da778ae00dd3e7596ba970a4dccd0a44", 3292503 },
+				{ "S_6842.MPX", 0, "506c04751bee9482f76333b0cf3c0e52", 577095784 },
+				{ "SPQR32.EXE", 0, "af2a7889779243c0d25392598e893137", 759296 },
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformWindows,
+			ADGF_UNSTABLE,
+			GUIO0()
+		},
+		GID_SPQR,
+		0,
+		MTBOOT_SPQR_RETAIL_WIN,
+	},
+
+	{ // SPQR: The Empire's Darkest Hour Macintosh CD-ROM
+		{
+			"spqr",
+			"",
+			{
+				{ "Install.vct", 0, "df8b7e964bf2ce4d32a38091836bdd75", 3539712 },
+				{ "S_6772", 0, "8f8e503fd5b6d0f7651149ff8d92a7a2", 576188928 },
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformMacintosh,
+			ADGF_UNSTABLE,
+			GUIO0()
+		},
+		GID_SPQR,
+		0,
+		MTBOOT_SPQR_RETAIL_MAC,
+	},
+
+	{ // Star Trek: The Game Show demo
+		{
+			"sttgs",
+			"Demo",
+			{
+				// { "MTPLAY95.EXE", 0, "3ce9559e8c8047243fb7393a90d8b8f5", 756736 },
+				{ "Trektriv.mpl", 0, "2dfab3665f9d7a24473f7cd17a0615ba", 43003276 },
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformWindows,
+			ADGF_DEMO | ADGF_UNSTABLE,
+			GUIO0()
+		},
+		GID_STTGS,
+		0,
+		MTBOOT_STTGS_DEMO_WIN,
 	},
 
 	{ AD_TABLE_END_MARKER, 0, 0, MTBOOT_INVALID }
