@@ -36,9 +36,9 @@
 #undef _X
 
 // Set the proper resolution for the FunKey S in games and menu
-#define RES_W 240
+#define RES_W 320
 #define RES_H 240
-#define RES_W_OVERLAY 240
+#define RES_W_OVERLAY 320
 #define RES_H_OVERLAY 240
 
 // HACK: With MinGW, GRIM engine seems to crash when using setjmp and longjmp if not using builtin versions

@@ -1,16 +1,10 @@
 #!/bin/sh
 
-mkdir -p opk/cores
+mkdir -p opk/
 
-cd /opt/sdlretro
-git pull
-mkdir -p build/
-cd build/
-cmake -DCMAKE_BUILD_TYPE=Release -DMODEL=funkey ..
-make clean
-make -j16
-/opt/FunKey-sdk/bin/arm-funkey-linux-musleabihf-strip src/sdlretro
-cp -f src/sdlretro ../../libretro-scummvm/opk
+cd /opt/picoarch
+./package
+cp -f picoarch ../libretro-scummvm/opk
 
 cd /opt/libretro-scummvm
 #git pull
@@ -20,7 +14,7 @@ cd backends/platform/libretro/build
 make clean
 make -j16
 /opt/FunKey-sdk/bin/arm-funkey-linux-musleabihf-strip scummvm_libretro.so
-cp -f scummvm_libretro.so ../../../../opk/cores/
+cp -f scummvm_libretro.so ../../../../opk/
 cd -
 
 cp -f icons/scummvm.png opk/
@@ -44,12 +38,13 @@ esac
 print '[Desktop Entry]
 Name=ScummVM
 Comment=ScummVM v2.6.1 for Libretro
-Exec=sdlretro %f
+Exec=picoarch ./scummvm_libretro.so
 Icon=scummvm
-Categories=games
-SelectorFilter=scummvm' > opk/scummvm.funkey-s.desktop
+Categories=games' > opk/scummvm.funkey-s.desktop
 
 rm -f *.opk
 mksquashfs opk/ scummvm_v2.6.1_funkey-s.opk -all-root -noappend -no-exports -no-xattrs
+
 rm -rf opk/
+
 rm -f backends/platform/libretro/aux-data/scummvm_tmp.zip
